@@ -1,0 +1,9 @@
+/*.exe
+/*.pdb
+/*.obj
+/.vscode
+*.bin
+run.sh
+RA_*
+imgui.ini
+recent.txt
