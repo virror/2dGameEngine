@@ -162,9 +162,16 @@ main :: proc() {
                         path := parts[len(parts) - 2]
                         folder_add(path, name, &root_folder)
                     } else {
-                        if strings.ends_with(event.path, ".png") {
+                        ext := os.ext(event.path)
+                        switch ext {
+                        case ".png":
                             meta_create_sprite(event.path)
-                            add_asset(event.path)
+                            add_asset(event.path, ext)
+                        case ".wav":
+                            meta_create_audio(event.path)
+                            add_asset(event.path, ext)
+                        case ".odin":
+                            add_asset(event.path, ext)
                         }
                     }
                 case .Removed:
@@ -173,12 +180,17 @@ main :: proc() {
                         name := parts[len(parts) - 1]
                         folder_remove(name, &root_folder)
                     } else {
-                        if strings.ends_with(event.path, ".png") {
+                        ext := os.ext(event.path)
+                        switch ext {
+                        case ".png",
+                             ".wav":
                             path := fmt.tprintf("%s.meta", event.path)
                             if os.exists(path) {
                                 os.remove(path)
                             }
-                            remove_asset(event.path)
+                            remove_asset(event.path, ext)
+                        case ".odin":
+                            remove_asset(event.path, ext)
                         }
                     }
                 case .Renamed:

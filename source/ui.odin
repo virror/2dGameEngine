@@ -49,20 +49,6 @@ Folder_node :: struct {
     parent: ^Folder_node,
 }
 
-Sprite_props :: struct {
-    type: Sprite_type,
-    frames: [2]i32,
-    slice9: [4]i32,
-    is_slice9: bool,
-}
-
-Audio_props :: struct {
-    preload: bool,
-    duration: string,
-    channels: i32,
-    sample_rate: i32,
-}
-
 @(private="file")
 Recent_item :: struct {
     path: string,
@@ -74,6 +60,7 @@ Asset_List :: struct {
     textures: [dynamic]string,
     scripts: [dynamic]string,
     audio: [dynamic]string,
+    entities: [dynamic]string,
 }
 
 file_watcher: fsw.Watcher
@@ -108,6 +95,7 @@ old_color: [4]f32
 @(private="file")
 sprite_props: Sprite_props
 audio_props: Audio_props
+entity_props: Entity_props
 @(private="file")
 assets_list: [dynamic]Asset
 @(private="file")
@@ -121,12 +109,13 @@ odin_texture: u32
 @(private="file")
 audio_texture: u32
 @(private="file")
+entity_texture: u32
+@(private="file")
 recent_list: [5]Recent_item
 @(private="file")
 full_assets_list: Asset_List
 @(private="file")
 selected_folder: string
-@(private="file")
 loaded_track: ^mix.Track
 
 ui_init :: proc(window_: ^sdl.Window) {
@@ -134,6 +123,7 @@ ui_init :: proc(window_: ^sdl.Window) {
     icon_texture, _ = texture_create(#load("../sprites/Icons.png"))
     odin_texture, _ = texture_create(#load("../sprites/Odin.png"))
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
+    entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
     recent_read()
     project_name = fmt.caprintf("")
 }
@@ -142,8 +132,9 @@ ui_cleanup :: proc() {
     texture_destroy(icon_texture)
     texture_destroy(odin_texture)
     texture_destroy(audio_texture)
+    texture_destroy(entity_texture)
     for asset in assets_list {
-        if asset.type != .Sound && asset.type != .Script && asset.type != .Unknown {
+        if asset.type == .Sprite {
             texture_destroy(asset.texture.texture)
         }
         delete(asset.name)
@@ -437,7 +428,7 @@ ui_show_right :: proc() {
                         imgui.SameLine(60, 0)
                         duration := mix.GetAudioDuration(mix.GetTrackAudio(loaded_track))
                         my_value := f32(mix.GetTrackPlaybackPosition(loaded_track)) / f32(duration)
-                        if imgui.SliderFloat("##Playback Slider", &my_value, 0.0, 1.0) {
+                        if imgui.SliderFloat("##Playback Slider", &my_value, 0.0, 1.0, "") {
                             if !mix.SetTrackPlaybackPosition(loaded_track, i64(my_value * f32(duration))) {
                                 panic("Failed to set audio position.")
                             }
@@ -583,6 +574,17 @@ ui_show_bottom :: proc() {
                     imgui.Dummy(imgui.Vec2{10, 0})
                     imgui.EndChild()
                 }
+
+                if imgui.BeginPopupContextItem(nil, imgui.PopupFlags_MouseButtonRight) {
+                    if imgui.Selectable("Create entity") {
+                        fd, err := os.create(fmt.tprintf("%s\\NewEntity.ent", selected_folder))
+                        if err != nil {
+
+                        }
+                        os.close(fd)
+                    }
+                    imgui.EndPopup()
+                }
                 imgui.EndTabItem()
             }
             imgui.SetNextItemWidth(90)
@@ -648,6 +650,8 @@ draw_folder_tree :: proc(node: ^Folder_node) {
                 sprite_props = meta_load_sprite(assets_list[0].path)
             case ".wav":
                 audio_props = meta_load_audio(assets_list[0].path, true)
+            case ".ent":
+                entity_props = meta_load_entity(assets_list[0].path)
             }
         }
     }
@@ -943,6 +947,9 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
                 append(&full_assets_list.audio, strings.clone(info[i].fullpath))
             case ".odin":
                 append(&full_assets_list.scripts, strings.clone(info[i].fullpath))
+            case ".ent":
+                meta_create_entity(info[i].fullpath)
+                append(&full_assets_list.entities, strings.clone(info[i].fullpath))
             }
         }
     }
@@ -1014,7 +1021,7 @@ rebuild_asset_list :: proc() {
 
 build_asset_list :: proc(path: string) {
     for i := len(assets_list) - 1; i >= 0; i -= 1 {
-        if assets_list[i].type != .Sound && assets_list[i].type != .Script && assets_list[i].type != .Unknown {
+        if assets_list[i].type == .Sprite {
             texture_destroy(assets_list[i].texture.texture)
             unordered_remove(&textures, assets_list[i].texture.texture)
         }
@@ -1061,6 +1068,15 @@ build_asset_list :: proc(path: string) {
             asset.texture.texture = odin_texture
             asset.texture.size = {50, 50}
             asset.type = .Script
+            asset.path = strings.clone(info[i].fullpath)
+            append(&assets_list, asset)
+            idx += 1
+        case ".ent":
+            asset: Asset
+            asset.name = strings.clone_to_cstring(info[i].name)
+            asset.texture.texture = entity_texture
+            asset.texture.size = {50, 50}
+            asset.type = .Entity
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
             idx += 1
@@ -1155,8 +1171,7 @@ build_assets :: proc() {
     delete(sound_map)
 }
 
-add_asset :: proc(path: string) {
-    ext := os.ext(path)
+add_asset :: proc(path: string, ext: string) {
     switch ext {
     case ".png":    
         append(&full_assets_list.textures, strings.clone(path))
@@ -1164,13 +1179,14 @@ add_asset :: proc(path: string) {
         append(&full_assets_list.audio, strings.clone(path))
     case ".odin":
         append(&full_assets_list.scripts, strings.clone(path))
+    case ".ent":
+        append(&full_assets_list.entities, strings.clone(path))
     }
 }
 
-remove_asset :: proc(path: string) {
+remove_asset :: proc(path: string, ext: string) {
     for i := 0; i < len(full_assets_list.textures); i += 1 {
         if full_assets_list.textures[i] == path {
-            ext := os.ext(path)
             switch ext {
             case ".png":
                 unordered_remove(&full_assets_list.textures, i)
@@ -1178,28 +1194,10 @@ remove_asset :: proc(path: string) {
                 unordered_remove(&full_assets_list.audio, i)
             case ".odin":
                 unordered_remove(&full_assets_list.scripts, i)
+            case ".ent":
+                unordered_remove(&full_assets_list.entities, i)
             }
             break
         }
     }
-}
-
-get_audio_data :: proc(path: string, props: ^Audio_props) {
-    mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
-    audio := mix.LoadAudio(mixer, strings.clone_to_cstring(path, context.temp_allocator), false)
-    loaded_track = mix.CreateTrack(mixer)
-    if !mix.SetTrackAudio(loaded_track, audio) {
-        panic("Failed to set track audio.")
-    }
-    spec: sdl.AudioSpec
-    if !mix.GetAudioFormat(audio, &spec) {
-        panic("Failed to get audio format.")
-    }
-
-    total_seconds := mix.AudioFramesToMS(audio, mix.GetAudioDuration(audio))
-    minutes := total_seconds / 1000 / 60
-    seconds := total_seconds / 1000 % 60
-    props.duration = fmt.aprintf("%02d:%02d.%03d", minutes, seconds, total_seconds % 1000)
-    props.channels = spec.channels
-    props.sample_rate = spec.freq
 }

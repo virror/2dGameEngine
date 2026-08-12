@@ -5,6 +5,26 @@ import "core:os"
 import "core:strings"
 import "core:strconv"
 import "core:encoding/ini"
+import sdl "vendor:sdl3"
+import mix "vendor:sdl3/mixer"
+
+Sprite_props :: struct {
+    type: Sprite_type,
+    frames: [2]i32,
+    slice9: [4]i32,
+    is_slice9: bool,
+}
+
+Audio_props :: struct {
+    preload: bool,
+    duration: string,
+    channels: i32,
+    sample_rate: i32,
+}
+
+Entity_props :: struct {
+    apa: bool,
+}
 
 meta_create_sprite :: proc(asset: string) {
     path := fmt.tprintf("%s.meta", asset)
@@ -94,11 +114,42 @@ meta_load_audio :: proc(asset: string, load_audio_data: bool) -> Audio_props {
     props: Audio_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
     props.preload = string_to_bool(ini_map[""]["preload"])
-    
+
     if load_audio_data {
         delete(props.duration)
         get_audio_data(asset, &props)
     }
+    return props
+}
+
+get_audio_data :: proc(path: string, props: ^Audio_props) {
+    mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
+    audio := mix.LoadAudio(mixer, strings.clone_to_cstring(path, context.temp_allocator), false)
+    loaded_track = mix.CreateTrack(mixer)
+    if !mix.SetTrackAudio(loaded_track, audio) {
+        panic("Failed to set track audio.")
+    }
+    spec: sdl.AudioSpec
+    if !mix.GetAudioFormat(audio, &spec) {
+        panic("Failed to get audio format.")
+    }
+
+    total_seconds := mix.AudioFramesToMS(audio, mix.GetAudioDuration(audio))
+    minutes := total_seconds / 1000 / 60
+    seconds := total_seconds / 1000 % 60
+    props.duration = fmt.aprintf("%02d:%02d.%03d", minutes, seconds, total_seconds % 1000)
+    props.channels = spec.channels
+    props.sample_rate = spec.freq
+}
+
+meta_create_entity :: proc(asset: string) {
+}
+
+meta_save_entity :: proc(asset: string, props: Entity_props) {
+}
+
+meta_load_entity :: proc(asset: string) -> Entity_props {
+    props: Entity_props
     return props
 }
 
