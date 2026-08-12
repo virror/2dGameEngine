@@ -37,6 +37,7 @@ main :: proc() {
     defer sdl.DestroyWindow(window)
 
     audio_init()
+    load_audio()
     defer audio_exit()
 
     render_init(window)

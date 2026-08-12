@@ -4,8 +4,6 @@ import "core:fmt"
 import sdl "vendor:sdl3"
 import mix "vendor:sdl3/mixer"
 
-SOUND_COUNT :: 1
-
 sounds: [SOUND_COUNT]^mix.Track
 mixer: ^mix.Mixer
 

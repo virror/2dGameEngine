@@ -4,14 +4,13 @@ import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "core:strconv"
-import "core:encoding/ini"
 import "core:time"
 import sdl "vendor:sdl3"
 import "../../imgui"
 import "../../imgui/imgui_impl_sdl3"
 import "../../imgui/imgui_impl_sdlgpu3"
 import fsw "../../odin-fsw"
+import mix "vendor:sdl3/mixer"
 
 @(private="file")
 Asset_type :: enum {
@@ -22,7 +21,6 @@ Asset_type :: enum {
     Script,
 }
 
-@(private="file")
 Sprite_type :: enum {
     Sprite,
     Tilemap,
@@ -51,7 +49,6 @@ Folder_node :: struct {
     parent: ^Folder_node,
 }
 
-@(private="file")
 Sprite_props :: struct {
     type: Sprite_type,
     frames: [2]i32,
@@ -59,10 +56,24 @@ Sprite_props :: struct {
     is_slice9: bool,
 }
 
+Audio_props :: struct {
+    preload: bool,
+    duration: string,
+    channels: i32,
+    sample_rate: i32,
+}
+
 @(private="file")
 Recent_item :: struct {
     path: string,
     date: string,
+}
+
+@(private="file")
+Asset_List :: struct {
+    textures: [dynamic]string,
+    scripts: [dynamic]string,
+    audio: [dynamic]string,
 }
 
 file_watcher: fsw.Watcher
@@ -96,6 +107,7 @@ root_folder: Folder_node
 old_color: [4]f32
 @(private="file")
 sprite_props: Sprite_props
+audio_props: Audio_props
 @(private="file")
 assets_list: [dynamic]Asset
 @(private="file")
@@ -105,23 +117,35 @@ set_console_focus: bool = false
 @(private="file")
 icon_texture: u32
 @(private="file")
+odin_texture: u32
+@(private="file")
+audio_texture: u32
+@(private="file")
 recent_list: [5]Recent_item
 @(private="file")
-full_assets_list: [dynamic]string
+full_assets_list: Asset_List
 @(private="file")
 selected_folder: string
+@(private="file")
+loaded_track: ^mix.Track
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
     icon_texture, _ = texture_create(#load("../sprites/Icons.png"))
+    odin_texture, _ = texture_create(#load("../sprites/Odin.png"))
+    audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     recent_read()
     project_name = fmt.caprintf("")
 }
 
 ui_cleanup :: proc() {
     texture_destroy(icon_texture)
+    texture_destroy(odin_texture)
+    texture_destroy(audio_texture)
     for asset in assets_list {
-        texture_destroy(asset.texture.texture)
+        if asset.type != .Sound && asset.type != .Script && asset.type != .Unknown {
+            texture_destroy(asset.texture.texture)
+        }
         delete(asset.name)
         delete(asset.path)
     }
@@ -137,12 +161,23 @@ ui_cleanup :: proc() {
         delete(text)
     }
     delete(console_output)
-    for asset in full_assets_list {
+    for asset in full_assets_list.textures {
         delete(asset)
     }
-    delete(full_assets_list)
+    delete(full_assets_list.textures)
+    for asset in full_assets_list.scripts {
+        delete(asset)
+    }
+    delete(full_assets_list.scripts)
+    for asset in full_assets_list.audio {
+        delete(asset)
+    }
+    delete(full_assets_list.audio)
     delete(textures)
     delete(selected_folder)
+    delete(audio_props.duration)
+    mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
+    mix.DestroyTrack(loaded_track)
 }
 
 recent_read :: proc() {
@@ -379,10 +414,48 @@ ui_show_right :: proc() {
                         if imgui.Button("Revert") {
                             sprite_props = meta_load_sprite(selected_asset.path)
                         }
-                    case .Entity:
                     case .Sound:
-                    case .Unknown:
+                        imgui.Text(selected_asset.name)
+                        imgui.Text(fmt.ctprintf("Duration: %s", audio_props.duration))
+                        imgui.Text(fmt.ctprintf("Channels: %d", audio_props.channels))
+                        imgui.Text(fmt.ctprintf("Sample Rate: %d", audio_props.sample_rate))
+                        imgui.Spacing()
+                        if mix.TrackPlaying(loaded_track) {
+                            if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+                                if !mix.StopTrack(loaded_track, 0) {
+                                    panic("Failed to stop audio.")
+                                }
+                            }
+                        } else {
+                            if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+                                options := sdl.CreateProperties()
+                                if !mix.PlayTrack(loaded_track, options) {
+                                    panic("Failed to play audio.")
+                                }
+                            }
+                        }
+                        imgui.SameLine(60, 0)
+                        duration := mix.GetAudioDuration(mix.GetTrackAudio(loaded_track))
+                        my_value := f32(mix.GetTrackPlaybackPosition(loaded_track)) / f32(duration)
+                        if imgui.SliderFloat("##Playback Slider", &my_value, 0.0, 1.0) {
+                            if !mix.SetTrackPlaybackPosition(loaded_track, i64(my_value * f32(duration))) {
+                                panic("Failed to set audio position.")
+                            }
+                        }
+                        imgui.Spacing()
+                        imgui.Checkbox("Preload:", &audio_props.preload)
+                        imgui.Spacing()
+                        imgui.Spacing()
+                        if imgui.Button("Apply") {
+                            meta_save_audio(selected_asset.path, audio_props)
+                        }
+                        imgui.SameLine(80, 0)
+                        if imgui.Button("Revert") {
+                            audio_props = meta_load_audio(selected_asset.path, true)
+                        }
+                    case .Entity:
                     case .Script:
+                    case .Unknown:
                     }
                 }
                 imgui.EndTabItem()
@@ -464,6 +537,7 @@ run_project :: proc() {
         "-strict-style",
     }
     desc.command = command
+    desc.working_dir = project_path
     _, stdout, stderr, _ := os.process_exec(desc, context.allocator)
     if len(console_output) > 100 {
         ordered_remove(&console_output, 0)
@@ -504,7 +578,7 @@ ui_show_bottom :: proc() {
                 imgui.SameLine(310, 0)
                 if imgui.BeginChild("AssetsList", imgui.Vec2{viewport.Size.x - 310, 150}) {
                     if project_loaded {
-                        draw_sprite_items()
+                        draw_asset_items()
                     }
                     imgui.Dummy(imgui.Vec2{10, 0})
                     imgui.EndChild()
@@ -568,7 +642,13 @@ draw_folder_tree :: proc(node: ^Folder_node) {
         build_asset_list(selected_folder)
         if len(assets_list) > 0 {
             selected_asset_idx = 0
-            sprite_props = meta_load_sprite(assets_list[0].path)
+            ext := os.ext(assets_list[0].path)
+            switch ext {
+            case ".png":
+                sprite_props = meta_load_sprite(assets_list[0].path)
+            case ".wav":
+                audio_props = meta_load_audio(assets_list[0].path, true)
+            }
         }
     }
     if is_open {
@@ -580,7 +660,7 @@ draw_folder_tree :: proc(node: ^Folder_node) {
     }
 }
 
-draw_sprite_items :: proc() {
+draw_asset_items :: proc() {
     max_items := int(imgui.GetWindowWidth() / 100)
     for i := 0; i < len(assets_list); i += 1 {
         if assets_list[i].name == "" {
@@ -590,13 +670,24 @@ draw_sprite_items :: proc() {
         if imgui.Selectable(fmt.ctprintf("##%s", assets_list[i].name), i == selected_asset_idx, nil, imgui.Vec2{85, 70}) {
             selected_asset_idx = i
             selected_asset = &assets_list[i]
-            sprite_props = meta_load_sprite(assets_list[i].path)
+            switch selected_asset.type {
+            case .Sprite:
+                sprite_props = meta_load_sprite(assets_list[i].path)
+            case .Sound:
+                audio_props = meta_load_audio(assets_list[i].path, true)
+            case .Script:
+            case .Unknown:
+            case .Entity:
+                //Do nothing atm
+            }
         }
-        imgui.SetCursorPos(cursorPos)
         ratio := f32(assets_list[i].texture.size.x) / f32(assets_list[i].texture.size.y)
         if ratio > 1.0 {
+            imgui.SetCursorPos({cursorPos.x + 17.5, cursorPos.y})
             imgui.Image(texture_to_image(assets_list[i].texture.texture), imgui.Vec2{50, 50 / ratio})
         } else {
+            x_offset := (85 - (50 * ratio)) / 2
+            imgui.SetCursorPos({cursorPos.x + x_offset, cursorPos.y})
             imgui.Image(texture_to_image(assets_list[i].texture.texture), imgui.Vec2{50 * ratio, 50})
         }
 
@@ -842,10 +933,17 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
             scan_folder(fmt.tprintf("%s\\%s", path, info[i].name), &node2)
             append(&node.children, node2)
         } else if info[i].type == os.File_Type.Regular {
-            if strings.ends_with(info[i].name, ".png") {
+            ext := os.ext(info[i].name)
+            switch ext {
+            case ".png":
                 meta_create_sprite(info[i].fullpath)
-                append(&full_assets_list, strings.clone(info[i].fullpath))
-            }   
+                append(&full_assets_list.textures, strings.clone(info[i].fullpath))
+            case ".wav":
+                meta_create_audio(info[i].fullpath)
+                append(&full_assets_list.audio, strings.clone(info[i].fullpath))
+            case ".odin":
+                append(&full_assets_list.scripts, strings.clone(info[i].fullpath))
+            }
         }
     }
     os.close(fd)
@@ -916,8 +1014,10 @@ rebuild_asset_list :: proc() {
 
 build_asset_list :: proc(path: string) {
     for i := len(assets_list) - 1; i >= 0; i -= 1 {
-        texture_destroy(assets_list[i].texture.texture)
-        unordered_remove(&textures, assets_list[i].texture.texture)
+        if assets_list[i].type != .Sound && assets_list[i].type != .Script && assets_list[i].type != .Unknown {
+            texture_destroy(assets_list[i].texture.texture)
+            unordered_remove(&textures, assets_list[i].texture.texture)
+        }
         delete(assets_list[i].name)
         delete(assets_list[i].path)
     }
@@ -936,109 +1036,39 @@ build_asset_list :: proc(path: string) {
         if info[i].type != os.File_Type.Regular {
             continue
         }
-        if !strings.ends_with(info[i].name, ".png") {
-            continue
+        ext := os.ext(info[i].name)
+        switch ext {
+        case ".png":
+            asset: Asset
+            asset.name = strings.clone_to_cstring(info[i].name)
+            asset.texture.texture, asset.texture.size = texture_from_name(info[i].fullpath)
+            asset.type = .Sprite
+            asset.path = strings.clone(info[i].fullpath)
+            append(&assets_list, asset)
+            idx += 1
+        case ".wav":
+            asset: Asset
+            asset.name = strings.clone_to_cstring(info[i].name)
+            asset.texture.texture = audio_texture
+            asset.texture.size = {50, 50}
+            asset.type = .Sound
+            asset.path = strings.clone(info[i].fullpath)
+            append(&assets_list, asset)
+            idx += 1
+        case ".odin":
+            asset: Asset
+            asset.name = strings.clone_to_cstring(info[i].name)
+            asset.texture.texture = odin_texture
+            asset.texture.size = {50, 50}
+            asset.type = .Script
+            asset.path = strings.clone(info[i].fullpath)
+            append(&assets_list, asset)
+            idx += 1
         }
-        asset: Asset
-        asset.name = strings.clone_to_cstring(info[i].name)
-        asset.texture.texture, asset.texture.size = texture_from_name(info[i].fullpath)
-        asset.type = .Sprite
-        asset.path = strings.clone(info[i].fullpath)
-        append(&assets_list, asset)
-        idx += 1
     }
     if len(assets_list) > 0 {
         selected_asset = &assets_list[0]
     }   
-}
-
-meta_create_sprite :: proc(asset: string) {
-    path := fmt.tprintf("%s.meta", asset)
-    if !os.exists(path) {
-        fd, err := os.create(path)
-        defer os.close(fd)
-        if err != nil {
-            panic(fmt.tprintf("Failed to create sprite %s.", path))
-        }
-        
-        writer := os.to_writer(fd)
-        ini.write_pair(writer, "type", int(Sprite_type.Sprite))
-        ini.write_pair(writer, "frames", [2]i32{1, 1})
-        ini.write_pair(writer, "slice9", [4]i32{0, 0, 0, 0})
-    }
-}
-
-meta_save_sprite :: proc(asset: string, props: Sprite_props) {
-    path := fmt.tprintf("%s.meta", asset)
-    fd, err := os.open(path, os.O_WRONLY)
-    defer os.close(fd)
-    if err != nil {
-        panic(fmt.tprintf("Failed to open sprite meta %s.", path))
-    }
-    writer := os.to_writer(fd)
-    ini.write_pair(writer, "type", i32(props.type))
-    ini.write_pair(writer, "frames", props.frames)
-    ini.write_pair(writer, "slice9", props.slice9)
-}
-
-meta_load_sprite :: proc(asset: string) -> Sprite_props {
-    path := fmt.tprintf("%s.meta", asset)
-    if !os.exists(path) {
-        panic(fmt.tprintf("Sprite %s does not exist.", path))
-    }
-    fd, err := os.open(path)
-    defer os.close(fd)
-    if err != nil {
-        panic(fmt.tprintf("Failed to open sprite %s.", path))
-    }
-    
-    props: Sprite_props
-    ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
-    props.type = string_to_type(ini_map[""]["type"])
-    props.frames = string_to_i32_2(ini_map[""]["frames"])
-    props.slice9 = string_to_i32_4(ini_map[""]["slice9"])
-    props.is_slice9 = props.slice9 != [4]i32{0, 0, 0, 0}
-    return props
-}
-
-string_to_i32_2 :: proc(value: string) -> [2]i32 {
-    val := strings.trim(value, "[]")
-    parts := strings.split(val, ", ", context.temp_allocator)
-    intval1, _ := strconv.parse_int(parts[0])
-    intval2, _ := strconv.parse_int(parts[1])
-    return [2]i32{i32(intval1), i32(intval2)}
-}
-
-string_to_i32_4 :: proc(value: string) -> [4]i32 {
-    val := strings.trim(value, "[]")
-    parts := strings.split(val, ", ", context.temp_allocator)
-    intval1, _ := strconv.parse_int(parts[0])
-    intval2, _ := strconv.parse_int(parts[1])
-    intval3, _ := strconv.parse_int(parts[2])
-    intval4, _ := strconv.parse_int(parts[3])
-    return [4]i32{i32(intval1), i32(intval2), i32(intval3), i32(intval4)}
-}
-
-string_to_f32_4 :: proc(value: string) -> [4]f32 {
-    val := strings.trim(value, "[]")
-    parts := strings.split(val, ", ", context.temp_allocator)
-    float1, _ := strconv.parse_f32(parts[0])
-    float2, _ := strconv.parse_f32(parts[1])
-    float3, _ := strconv.parse_f32(parts[2])
-    float4, _ := strconv.parse_f32(parts[3])
-    return [4]f32{float1, float2, float3, float4}
-}
-
-string_to_type :: proc(value: string) -> Sprite_type {
-    switch value {
-    case "0":
-        return .Sprite
-    case "1":
-        return .Tilemap
-    case "2":
-        return .Font
-    }
-    return .Sprite
 }
 
 build_assets :: proc() {
@@ -1046,16 +1076,18 @@ build_assets :: proc() {
     sprites_count := 1
     tilemaps_count := 1
     fonts_count := 1
+    sounds_count := 1
     sprite_map: map[string]int
     tilemap_map: map[string]int
     font_map: map[string]int
+    sound_map: map[string]int
 
     fd, _ := os.open(file_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     os.write_string(fd, "#+feature dynamic-literals\n")
     os.write_string(fd, "package main\n\nload_textures :: proc() {\n")
-    for i := 0; i < len(full_assets_list); i += 1 {
-        meta := meta_load_sprite(full_assets_list[i])
-        path, _ := os.get_relative_path(project_path, full_assets_list[i], context.temp_allocator)
+    for i := 0; i < len(full_assets_list.textures); i += 1 {
+        meta := meta_load_sprite(full_assets_list.textures[i])
+        path, _ := os.get_relative_path(project_path, full_assets_list.textures[i], context.temp_allocator)
         path, _ = strings.replace(path, "\\", "/", -1, context.temp_allocator)
         switch meta.type {
         case .Sprite:
@@ -1077,6 +1109,17 @@ build_assets :: proc() {
     }
     os.write_string(fd, "}\n\n")
 
+    os.write_string(fd, "load_audio :: proc() {\n")
+    for i := 0; i < len(full_assets_list.audio); i += 1 {
+        meta := meta_load_audio(full_assets_list.audio[i], false)
+        path, _ := os.get_relative_path(project_path, full_assets_list.audio[i], context.temp_allocator)
+        path, _ = strings.replace(path, "\\", "/", -1, context.temp_allocator)
+        os.write_string(fd, fmt.tprintf("\tsounds[%d] = audio_create_sound(#load(\"../%s\"), %t)\n", sounds_count - 1, path, meta.preload))
+        sound_map[os.short_stem(path)] = sounds_count - 1
+        sounds_count += 1
+    }
+    os.write_string(fd, "}\n\n")
+
     os.write_string(fd, fmt.tprintf("sprite_map := map[string]int {{\n"))
     for key, value in sprite_map {
         os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
@@ -1095,24 +1138,68 @@ build_assets :: proc() {
     }
     os.write_string(fd, fmt.tprintf("}}\n\n"))
 
+    os.write_string(fd, fmt.tprintf("sound_map := map[string]int {{\n"))
+    for key, value in sound_map {
+        os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
+    }
+    os.write_string(fd, fmt.tprintf("}}\n\n"))
+
     os.write_string(fd, fmt.tprintf("TILEMAP_COUNT :: %d\n", tilemaps_count))
     os.write_string(fd, fmt.tprintf("SPRITE_COUNT :: %d\n", sprites_count))
     os.write_string(fd, fmt.tprintf("FONT_COUNT :: %d\n", fonts_count))
+    os.write_string(fd, fmt.tprintf("SOUND_COUNT :: %d\n", sounds_count))
     os.close(fd)
     delete(sprite_map)
     delete(tilemap_map)
     delete(font_map)
+    delete(sound_map)
 }
 
 add_asset :: proc(path: string) {
-    append(&full_assets_list, strings.clone(path))
+    ext := os.ext(path)
+    switch ext {
+    case ".png":    
+        append(&full_assets_list.textures, strings.clone(path))
+    case ".wav":
+        append(&full_assets_list.audio, strings.clone(path))
+    case ".odin":
+        append(&full_assets_list.scripts, strings.clone(path))
+    }
 }
 
 remove_asset :: proc(path: string) {
-    for i := 0; i < len(full_assets_list); i += 1 {
-        if full_assets_list[i] == path {
-            unordered_remove(&full_assets_list, i)
+    for i := 0; i < len(full_assets_list.textures); i += 1 {
+        if full_assets_list.textures[i] == path {
+            ext := os.ext(path)
+            switch ext {
+            case ".png":
+                unordered_remove(&full_assets_list.textures, i)
+            case ".wav":
+                unordered_remove(&full_assets_list.audio, i)
+            case ".odin":
+                unordered_remove(&full_assets_list.scripts, i)
+            }
             break
         }
     }
+}
+
+get_audio_data :: proc(path: string, props: ^Audio_props) {
+    mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
+    audio := mix.LoadAudio(mixer, strings.clone_to_cstring(path, context.temp_allocator), false)
+    loaded_track = mix.CreateTrack(mixer)
+    if !mix.SetTrackAudio(loaded_track, audio) {
+        panic("Failed to set track audio.")
+    }
+    spec: sdl.AudioSpec
+    if !mix.GetAudioFormat(audio, &spec) {
+        panic("Failed to get audio format.")
+    }
+
+    total_seconds := mix.AudioFramesToMS(audio, mix.GetAudioDuration(audio))
+    minutes := total_seconds / 1000 / 60
+    seconds := total_seconds / 1000 % 60
+    props.duration = fmt.aprintf("%02d:%02d.%03d", minutes, seconds, total_seconds % 1000)
+    props.channels = spec.channels
+    props.sample_rate = spec.freq
 }
