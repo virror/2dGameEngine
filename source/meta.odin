@@ -23,7 +23,16 @@ Audio_props :: struct {
 }
 
 Entity_props :: struct {
-    apa: bool,
+    sprite: string,
+    collider: [4]i32,
+    mass: f32,
+    friction: f32,
+    bounciness: f32,
+    trigger: bool,
+    no_gravity: bool,
+    update: string,
+    on_collide_entity: string,
+    on_collide_tile: string,
 }
 
 meta_create_sprite :: proc(asset: string) {
@@ -113,7 +122,7 @@ meta_load_audio :: proc(asset: string, load_audio_data: bool) -> Audio_props {
 
     props: Audio_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
-    props.preload = string_to_bool(ini_map[""]["preload"])
+    props.preload, _ = strconv.parse_bool(ini_map[""]["preload"])
 
     if load_audio_data {
         delete(props.duration)
@@ -143,13 +152,75 @@ get_audio_data :: proc(path: string, props: ^Audio_props) {
 }
 
 meta_create_entity :: proc(asset: string) {
+    path := fmt.tprintf("%s.meta", asset)
+    if !os.exists(path) {
+        fd, err := os.create(path)
+        defer os.close(fd)
+        if err != nil {
+            panic(fmt.tprintf("Failed to create entity %s.", path))
+        }
+        
+        writer := os.to_writer(fd)
+        ini.write_pair(writer, "sprite", "")
+        ini.write_pair(writer, "collider", [4]i32{0, 0, 0, 0})
+        ini.write_pair(writer, "mass", 1.0)
+        ini.write_pair(writer, "friction", 0.0)
+        ini.write_pair(writer, "bounciness", 0.0)
+        ini.write_pair(writer, "trigger", false)
+        ini.write_pair(writer, "no_gravity", false)
+
+        ini.write_pair(writer, "update", "")
+        ini.write_pair(writer, "on_collide_entity", "")
+        ini.write_pair(writer, "on_collide_tile", "")
+    }
 }
 
 meta_save_entity :: proc(asset: string, props: Entity_props) {
+    path := fmt.tprintf("%s.meta", asset)
+    fd, err := os.open(path, os.O_WRONLY)
+    defer os.close(fd)
+    if err != nil {
+        panic(fmt.tprintf("Failed to open entity meta %s.", path))
+    }
+    writer := os.to_writer(fd)
+    ini.write_pair(writer, "sprite", props.sprite)
+    ini.write_pair(writer, "collider", props.collider)
+    ini.write_pair(writer, "mass", props.mass)
+    ini.write_pair(writer, "friction", props.friction)
+    ini.write_pair(writer, "bounciness", props.bounciness)
+    ini.write_pair(writer, "trigger", props.trigger)
+    ini.write_pair(writer, "no_gravity", props.no_gravity)
+
+    ini.write_pair(writer, "update", props.update)
+    ini.write_pair(writer, "on_collide_entity", props.on_collide_entity)
+    ini.write_pair(writer, "on_collide_tile", props.on_collide_tile)
 }
 
 meta_load_entity :: proc(asset: string) -> Entity_props {
+    path := fmt.tprintf("%s.meta", asset)
+    if !os.exists(path) {
+        panic(fmt.tprintf("Entity %s does not exist.", path))
+    }
+    fd, err := os.open(path)
+    defer os.close(fd)
+    if err != nil {
+        panic(fmt.tprintf("Failed to open entity %s.", path))
+    }
+
     props: Entity_props
+    ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
+    props.sprite = ini_map[""]["sprite"]
+    props.collider = string_to_i32_4(ini_map[""]["collider"])
+    props.mass, _ = strconv.parse_f32(ini_map[""]["mass"])
+    props.friction, _ = strconv.parse_f32(ini_map[""]["friction"])
+    props.bounciness, _ = strconv.parse_f32(ini_map[""]["bounciness"])
+    props.trigger, _ = strconv.parse_bool(ini_map[""]["trigger"])
+    props.no_gravity, _ = strconv.parse_bool(ini_map[""]["no_gravity"])
+
+    props.update = ini_map[""]["update"]
+    props.on_collide_entity = ini_map[""]["on_collide_entity"]
+    props.on_collide_tile = ini_map[""]["on_collide_tile"]
+
     return props
 }
 
@@ -179,16 +250,6 @@ string_to_f32_4 :: proc(value: string) -> [4]f32 {
     float3, _ := strconv.parse_f32(parts[2])
     float4, _ := strconv.parse_f32(parts[3])
     return [4]f32{float1, float2, float3, float4}
-}
-
-string_to_bool :: proc(value: string) -> bool {
-    switch value {
-    case "true":
-        return true
-    case "false":
-        return false
-    }
-    return false
 }
 
 string_to_type :: proc(value: string) -> Sprite_type {

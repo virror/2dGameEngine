@@ -164,6 +164,10 @@ ui_cleanup :: proc() {
         delete(asset)
     }
     delete(full_assets_list.audio)
+    for asset in full_assets_list.entities {
+        delete(asset)
+    }
+    delete(full_assets_list.entities)
     delete(textures)
     delete(selected_folder)
     delete(audio_props.duration)
@@ -303,6 +307,7 @@ ui_show_colorpicker :: proc() {
 
 sprite_types := []cstring{"Sprite", "Tilemap", "Font"}
 sprite_type_pre := sprite_types[0]
+entity_type_pre :cstring= ""//full_assets_list.entities[0]
 
 ui_show_right :: proc() {
     imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{viewport.Size.x, 0}, .Always, imgui.Vec2{1, 0})
@@ -324,6 +329,7 @@ ui_show_right :: proc() {
                             imgui.Image(texture_to_image(selected_asset.texture.texture), imgui.Vec2{100 * ratio, 100})
                         }*/
                         imgui.Spacing()
+                        imgui.Text("Texture type:")
                         sprite_type_pre = sprite_types[int(sprite_props.type)]
                         if imgui.BeginCombo("##SpriteProps", sprite_type_pre) {
                             for i := 0; i < len(sprite_types); i += 1 {
@@ -445,6 +451,40 @@ ui_show_right :: proc() {
                             audio_props = meta_load_audio(selected_asset.path, true)
                         }
                     case .Entity:
+                        imgui.Text(selected_asset.name)
+                        imgui.Spacing()
+                        //entity_type_pre = entity_props.sprite
+                        if imgui.BeginCombo("##Sprite", entity_type_pre) {
+                            for i := 0; i < len(full_assets_list.textures); i += 1 {
+                                is_selected := entity_props.sprite == full_assets_list.textures[i]
+                                if imgui.Selectable(strings.clone_to_cstring(full_assets_list.textures[i], context.temp_allocator), is_selected) {
+                                    entity_props.sprite = full_assets_list.textures[i]
+                                }
+                                if is_selected {
+                                    imgui.SetItemDefaultFocus()
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
+                        imgui.InputInt4("Collider:", &entity_props.collider)
+                        imgui.InputFloat("Mass:", &entity_props.mass, 0.1, 1.0, "%.2f")
+                        imgui.InputFloat("Friction:", &entity_props.friction, 0.1, 1.0, "%.2f")
+                        imgui.InputFloat("Bounciness:", &entity_props.bounciness, 0.1, 1.0, "%.2f")
+                        imgui.Checkbox("Trigger:", &entity_props.trigger)
+                        imgui.Checkbox("No Gravity:", &entity_props.no_gravity)
+                        imgui.Spacing()
+                        imgui.Text(fmt.ctprintf("Update: %s", entity_props.update))
+                        imgui.Text(fmt.ctprintf("On Collide Entity: %s", entity_props.on_collide_entity))
+                        imgui.Text(fmt.ctprintf("On Collide Tile: %s", entity_props.on_collide_tile))
+                        imgui.Spacing()
+                        imgui.Spacing()
+                        if imgui.Button("Apply") {
+                            meta_save_entity(selected_asset.path, entity_props)
+                        }
+                        imgui.SameLine(80, 0)
+                        if imgui.Button("Revert") {
+                            entity_props = meta_load_entity(selected_asset.path)
+                        }
                     case .Script:
                     case .Unknown:
                     }
