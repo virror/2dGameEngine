@@ -461,13 +461,13 @@ ui_show_right :: proc() {
                         imgui.Text(fmt.ctprintf("Sample Rate: %d", audio_props.sample_rate))
                         imgui.Spacing()
                         if mix.TrackPlaying(loaded_track) {
-                            if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+                            if imgui.ImageButton("StopTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
                                 if !mix.StopTrack(loaded_track, 0) {
                                     panic("Failed to stop audio.")
                                 }
                             }
                         } else {
-                            if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+                            if imgui.ImageButton("PlayTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
                                 options := sdl.CreateProperties()
                                 if !mix.PlayTrack(loaded_track, options) {
                                     panic("Failed to play audio.")
@@ -682,12 +682,22 @@ ui_show_top :: proc() {
         }
         imgui.SetItemTooltip("Open project")
         imgui.SameLine(120, 0)
-        if imgui.ImageButton("Run", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
-            if project_loaded {
-                run_project()
+        if stdout_args != nil {
+            if imgui.ImageButton("Stop", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+                if project_loaded {
+                    if os.process_terminate(process) != nil {
+                        panic("Failed to kill process.")
+                    }
+                }
             }
+        } else {
+            if imgui.ImageButton("Run", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+                if project_loaded {
+                    run_project()
+                }
+            }
+            imgui.SetItemTooltip("Run project")
         }
-        imgui.SetItemTooltip("Run project")
     }
     imgui.End()
 }
