@@ -548,6 +548,7 @@ ui_show_right :: proc() {
                                 for i := 0; i < len(full_assets_list.scripts[script_idx1].list); i += 1 {
                                     is_selected := entity_props.update == full_assets_list.scripts[script_idx1].list[i]
                                     if imgui.Selectable(full_assets_list.scripts[script_idx1].list[i], is_selected) {
+                                        delete(entity_props.update)
                                         entity_props.update = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx1].list[i]))
                                     }
                                     if is_selected {
@@ -561,9 +562,10 @@ ui_show_right :: proc() {
                         entity_props.script_file2 = ui_script_dropdown("##On Collide Entity", entity_props.script_file2, &script_idx2)
                         if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
                             if entity_props.script_file2 != "None" {
-                                for i := 0; i < len(full_assets_list.scripts); i += 1 {
+                                for i := 0; i < len(full_assets_list.scripts[script_idx2].list); i += 1 {
                                     is_selected := entity_props.on_collide_entity == full_assets_list.scripts[script_idx2].list[i]
                                     if imgui.Selectable(full_assets_list.scripts[script_idx2].list[i], is_selected) {
+                                        delete(entity_props.on_collide_entity)
                                         entity_props.on_collide_entity = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx2].list[i]))
                                     }
                                     if is_selected {
@@ -577,9 +579,10 @@ ui_show_right :: proc() {
                         entity_props.script_file3 = ui_script_dropdown("##On Collide Tile", entity_props.script_file3, &script_idx3)
                         if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
                             if entity_props.script_file3 != "None" {
-                                for i := 0; i < len(full_assets_list.scripts); i += 1 {
+                                for i := 0; i < len(full_assets_list.scripts[script_idx3].list); i += 1 {
                                     is_selected := entity_props.on_collide_tile == full_assets_list.scripts[script_idx3].list[i]
                                     if imgui.Selectable(full_assets_list.scripts[script_idx3].list[i], is_selected) {
+                                        delete(entity_props.on_collide_tile)
                                         entity_props.on_collide_tile = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx3].list[i]))
                                     }
                                     if is_selected {
@@ -629,15 +632,18 @@ ui_script_dropdown :: proc(id: cstring, script_file: cstring, idx: ^int) -> cstr
             }
             is_selected := script_file == full_assets_list.scripts[i].name
             if imgui.Selectable(full_assets_list.scripts[i].name, is_selected) {
-                tmp_file = full_assets_list.scripts[i].name
+                tmp_file = strings.clone_to_cstring(string(full_assets_list.scripts[i].name))
                 idx^ = i
                 switch id {
                 case "##Update":
-                    entity_props.update = "None"
+                    delete(entity_props.update)
+                    entity_props.update = strings.clone_to_cstring("None")
                 case "##On Collide Entity":
-                    entity_props.on_collide_entity = "None"
+                    delete(entity_props.on_collide_entity)
+                    entity_props.on_collide_entity = strings.clone_to_cstring("None")
                 case "##On Collide Tile":
-                    entity_props.on_collide_tile = "None"
+                    delete(entity_props.on_collide_tile)
+                    entity_props.on_collide_tile = strings.clone_to_cstring("None")
                 }
             }
             if is_selected {
@@ -790,15 +796,18 @@ ui_show_bottom :: proc() {
                 set_console_focus = false
             }
             if imgui.BeginTabItem("Console", nil, flag) {
-                if imgui.SmallButton("Clear") {
-                    for text in console_output {
-                        delete(text)
+                if imgui.BeginChild("ConsoleChild", imgui.Vec2{viewport.Size.x, 150}) {
+                    if imgui.SmallButton("Clear") {
+                        for text in console_output {
+                            delete(text)
+                        }
+                        delete(console_output)
+                        console_output = {}
                     }
-                    delete(console_output)
-                    console_output = {}
-                }
-                for i := 0; i < len(console_output); i += 1 {
-                    imgui.Text(strings.clone_to_cstring(console_output[i], context.temp_allocator))
+                    for i := 0; i < len(console_output); i += 1 {
+                        imgui.Text(strings.clone_to_cstring(console_output[i], context.temp_allocator))
+                    }
+                    imgui.EndChild()
                 }
                 imgui.EndTabItem()
             }
