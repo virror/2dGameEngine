@@ -131,6 +131,9 @@ full_assets_list: Asset_List
 @(private="file")
 selected_folder: string
 loaded_track: ^mix.Track
+stdout_args: ^os.File
+stderr_args: ^os.File
+process: os.Process
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -165,6 +168,7 @@ ui_cleanup :: proc() {
     delete(project_name)
     clean_folder(&root_folder)
     fsw.destroy(file_watcher)
+    fmt.println("2.5")
     for text in console_output {
         delete(text)
     }
@@ -698,6 +702,8 @@ run_project :: proc() {
     build_assets()
     desc: os.Process_Desc
     path := fmt.tprintf("%s\\source", project_path)
+    stdout_read, stdout_write, _ := os.pipe()
+	stderr_read, stderr_write, _ := os.pipe()
     command := []string {
         "../Odin/odin.exe",
         "run",
@@ -710,19 +716,21 @@ run_project :: proc() {
     }
     desc.command = command
     desc.working_dir = project_path
-    _, stdout, stderr, _ := os.process_exec(desc, context.allocator)
+    desc.stdout = stdout_write
+    desc.stderr = stderr_write
+    process, _ = os.process_start(desc)
+    os.close(stdout_write)
+	os.close(stderr_write)
+    stdout_args = stdout_read
+	stderr_args = stderr_read
+}
+
+console_add_line :: proc(line: string) {
     if len(console_output) > 100 {
         ordered_remove(&console_output, 0)
     }
-    if transmute(string)stdout != "" {
-        append(&console_output, strings.clone_from_bytes(stdout))
-    }
-    if transmute(string)stderr != "" {
-        append(&console_output, strings.clone_from_bytes(stderr))
-    }
+    append(&console_output, line)
     set_console_focus = true
-    delete(stdout)
-    delete(stderr)
 }
 
 @(private="file")

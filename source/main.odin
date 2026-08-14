@@ -136,8 +136,28 @@ main :: proc() {
 
         render_post(io)
 
-        // Each frame, free all memory allocated by things such as tprint
-        free_all(context.temp_allocator)
+        if stdout_args != nil {
+            buf1: [256]u8
+            buf2: [256]u8
+            has_data1, _ := os.pipe_has_data(stdout_args)
+            if has_data1 {
+                n, _ := os.read(stdout_args, buf1[:])
+                console_add_line(strings.clone(string(buf1[:n])))
+            }
+            has_data2, _ := os.pipe_has_data(stderr_args)
+            if has_data2 {
+                n, _ := os.read(stderr_args, buf2[:])
+                console_add_line(strings.clone(string(buf2[:n])))
+            }
+
+            state, _ := os.process_wait(process, 0)
+            if state.exited {
+                os.close(stdout_args)
+                os.close(stderr_args)
+                stdout_args = nil
+                stderr_args = nil
+            }
+        }
 
         when ODIN_DEBUG {
             if len(debug_allocator.bad_free_array) > 0 {
@@ -215,6 +235,10 @@ main :: proc() {
                 rebuild_asset_list()
             }
         }
+
+        // Each frame, free all memory allocated by things such as tprint
+        free_all(context.temp_allocator)
+
         time_last = time_start
     }
 }
