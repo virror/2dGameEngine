@@ -207,6 +207,8 @@ main :: proc() {
                         }
                     }
                     //TODO: Handle file renames
+                case .Modified:
+                    fmt.println(event)   
                 }
             }
             if len(events) > 0 {

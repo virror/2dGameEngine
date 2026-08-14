@@ -23,16 +23,19 @@ Audio_props :: struct {
 }
 
 Entity_props :: struct {
-    sprite: string,
+    sprite: cstring,
     collider: [4]i32,
     mass: f32,
     friction: f32,
     bounciness: f32,
     trigger: bool,
     no_gravity: bool,
-    update: string,
-    on_collide_entity: string,
-    on_collide_tile: string,
+    script_file1: cstring,
+    script_file2: cstring,
+    script_file3: cstring,
+    update: cstring,
+    on_collide_entity: cstring,
+    on_collide_tile: cstring,
 }
 
 meta_create_sprite :: proc(asset: string) {
@@ -151,8 +154,8 @@ get_audio_data :: proc(path: string, props: ^Audio_props) {
     props.sample_rate = spec.freq
 }
 
-meta_create_entity :: proc(asset: string) {
-    path := fmt.tprintf("%s.meta", asset)
+meta_create_entity :: proc(apa: string) {
+    path := fmt.tprintf("%s.meta", apa)
     if !os.exists(path) {
         fd, err := os.create(path)
         defer os.close(fd)
@@ -169,18 +172,20 @@ meta_create_entity :: proc(asset: string) {
         ini.write_pair(writer, "trigger", false)
         ini.write_pair(writer, "no_gravity", false)
 
-        ini.write_pair(writer, "update", "")
-        ini.write_pair(writer, "on_collide_entity", "")
-        ini.write_pair(writer, "on_collide_tile", "")
+        ini.write_pair(writer, "script_file1", "None")
+        ini.write_pair(writer, "script_file2", "None")
+        ini.write_pair(writer, "script_file3", "None")
+        ini.write_pair(writer, "update", "None")
+        ini.write_pair(writer, "on_collide_entity", "None")
+        ini.write_pair(writer, "on_collide_tile", "None")
     }
 }
 
-meta_save_entity :: proc(asset: string, props: Entity_props) {
-    path := fmt.tprintf("%s.meta", asset)
+meta_save_entity :: proc(path: string, props: Entity_props) {
     fd, err := os.open(path, os.O_WRONLY)
     defer os.close(fd)
     if err != nil {
-        panic(fmt.tprintf("Failed to open entity meta %s.", path))
+        panic(fmt.tprintf("Failed to open entity %s.", path))
     }
     writer := os.to_writer(fd)
     ini.write_pair(writer, "sprite", props.sprite)
@@ -191,13 +196,15 @@ meta_save_entity :: proc(asset: string, props: Entity_props) {
     ini.write_pair(writer, "trigger", props.trigger)
     ini.write_pair(writer, "no_gravity", props.no_gravity)
 
+    ini.write_pair(writer, "script_file1", props.script_file1)
+    ini.write_pair(writer, "script_file2", props.script_file2)
+    ini.write_pair(writer, "script_file3", props.script_file3)
     ini.write_pair(writer, "update", props.update)
     ini.write_pair(writer, "on_collide_entity", props.on_collide_entity)
     ini.write_pair(writer, "on_collide_tile", props.on_collide_tile)
 }
 
-meta_load_entity :: proc(asset: string) -> Entity_props {
-    path := fmt.tprintf("%s.meta", asset)
+meta_load_entity :: proc(path: string) -> Entity_props {
     if !os.exists(path) {
         panic(fmt.tprintf("Entity %s does not exist.", path))
     }
@@ -209,7 +216,7 @@ meta_load_entity :: proc(asset: string) -> Entity_props {
 
     props: Entity_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
-    props.sprite = ini_map[""]["sprite"]
+    props.sprite = strings.clone_to_cstring(ini_map[""]["sprite"])
     props.collider = string_to_i32_4(ini_map[""]["collider"])
     props.mass, _ = strconv.parse_f32(ini_map[""]["mass"])
     props.friction, _ = strconv.parse_f32(ini_map[""]["friction"])
@@ -217,10 +224,24 @@ meta_load_entity :: proc(asset: string) -> Entity_props {
     props.trigger, _ = strconv.parse_bool(ini_map[""]["trigger"])
     props.no_gravity, _ = strconv.parse_bool(ini_map[""]["no_gravity"])
 
-    props.update = ini_map[""]["update"]
-    props.on_collide_entity = ini_map[""]["on_collide_entity"]
-    props.on_collide_tile = ini_map[""]["on_collide_tile"]
+    props.script_file1 = strings.clone_to_cstring(ini_map[""]["script_file1"])
+    props.script_file2 = strings.clone_to_cstring(ini_map[""]["script_file2"])
+    props.script_file3 = strings.clone_to_cstring(ini_map[""]["script_file3"])
+    props.update = strings.clone_to_cstring(ini_map[""]["update"])
+    props.on_collide_entity = strings.clone_to_cstring(ini_map[""]["on_collide_entity"])
+    props.on_collide_tile = strings.clone_to_cstring(ini_map[""]["on_collide_tile"])
 
+    for i := 0; i < len(full_assets_list.scripts); i += 1 {
+        if props.script_file1 == full_assets_list.scripts[i].name {
+            script_idx1 = i
+        }
+        if props.script_file2 == full_assets_list.scripts[i].name {
+            script_idx2 = i
+        }
+        if props.script_file3 == full_assets_list.scripts[i].name {
+            script_idx3 = i
+        }
+    }
     return props
 }
 

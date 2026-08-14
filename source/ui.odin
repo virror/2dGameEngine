@@ -56,9 +56,22 @@ Recent_item :: struct {
 }
 
 @(private="file")
+Asset_list_item :: struct {
+    path: string,
+    name: cstring,
+}
+
+@(private="file")
+Asset_list_script :: struct {
+    path: string,
+    name: cstring,
+    list: [dynamic]cstring,
+}
+
+@(private="file")
 Asset_List :: struct {
-    textures: [dynamic]string,
-    scripts: [dynamic]string,
+    textures: [dynamic]Asset_list_item,
+    scripts: [dynamic]Asset_list_script,
     audio: [dynamic]string,
     entities: [dynamic]string,
 }
@@ -112,7 +125,6 @@ audio_texture: u32
 entity_texture: u32
 @(private="file")
 recent_list: [5]Recent_item
-@(private="file")
 full_assets_list: Asset_List
 @(private="file")
 selected_folder: string
@@ -133,6 +145,7 @@ ui_cleanup :: proc() {
     texture_destroy(odin_texture)
     texture_destroy(audio_texture)
     texture_destroy(entity_texture)
+    fmt.println("0")
     for asset in assets_list {
         if asset.type == .Sprite {
             texture_destroy(asset.texture.texture)
@@ -140,26 +153,37 @@ ui_cleanup :: proc() {
         delete(asset.name)
         delete(asset.path)
     }
+    fmt.println("1")
     delete(assets_list)
     for item in recent_list {
         delete(item.path)
         delete(item.date)
     }
+    fmt.println("2")
     delete(project_name)
     clean_folder(&root_folder)
     fsw.destroy(file_watcher)
     for text in console_output {
         delete(text)
     }
+    fmt.println("3")
     delete(console_output)
     for asset in full_assets_list.textures {
-        delete(asset)
+        delete(asset.path)
+        delete(asset.name)
     }
     delete(full_assets_list.textures)
+    fmt.println("3.5")
     for asset in full_assets_list.scripts {
-        delete(asset)
+        delete(asset.path)
+        delete(asset.name)
+        for apa in asset.list {
+            delete(apa)
+        }
+        delete(asset.list)
     }
     delete(full_assets_list.scripts)
+    fmt.println("4")
     for asset in full_assets_list.audio {
         delete(asset)
     }
@@ -170,7 +194,15 @@ ui_cleanup :: proc() {
     delete(full_assets_list.entities)
     delete(textures)
     delete(selected_folder)
+    fmt.println("5")
     delete(audio_props.duration)
+    delete(entity_props.sprite)
+    delete(entity_props.script_file1)
+    delete(entity_props.script_file2)
+    delete(entity_props.script_file3)
+    delete(entity_props.update)
+    delete(entity_props.on_collide_entity)
+    delete(entity_props.on_collide_tile)
     mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
     mix.DestroyTrack(loaded_track)
 }
@@ -307,7 +339,10 @@ ui_show_colorpicker :: proc() {
 
 sprite_types := []cstring{"Sprite", "Tilemap", "Font"}
 sprite_type_pre := sprite_types[0]
-entity_type_pre :cstring= ""//full_assets_list.entities[0]
+entity_type_pre :cstring
+script_idx1 :int = 0
+script_idx2 :int = 0
+script_idx3 :int = 0
 
 ui_show_right :: proc() {
     imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{viewport.Size.x, 0}, .Always, imgui.Vec2{1, 0})
@@ -355,7 +390,9 @@ ui_show_right :: proc() {
                             imgui.SetNextItemWidth(120)
                             imgui.InputInt("##FramesY", &sprite_props.frames[1])
                             imgui.Spacing()
-                            if imgui.Checkbox("9 Slice:", &sprite_props.is_slice9) {
+                            imgui.Text("9 Slice:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            if imgui.Checkbox("##9 Slice", &sprite_props.is_slice9) {
                                 if sprite_props.is_slice9 {
                                     sprite_props.slice9 = [4]i32{1, 1, 1, 1}
                                 } else {
@@ -440,7 +477,9 @@ ui_show_right :: proc() {
                             }
                         }
                         imgui.Spacing()
-                        imgui.Checkbox("Preload:", &audio_props.preload)
+                        imgui.Text("Preload:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.Checkbox("##Preload", &audio_props.preload)
                         imgui.Spacing()
                         imgui.Spacing()
                         if imgui.Button("Apply") {
@@ -453,12 +492,18 @@ ui_show_right :: proc() {
                     case .Entity:
                         imgui.Text(selected_asset.name)
                         imgui.Spacing()
-                        //entity_type_pre = entity_props.sprite
+                        imgui.Text("Sprite:")
+                        if entity_props.sprite != "" {
+                            entity_type_pre = entity_props.sprite
+                        } else {
+                            entity_type_pre = "None"
+                        }
                         if imgui.BeginCombo("##Sprite", entity_type_pre) {
                             for i := 0; i < len(full_assets_list.textures); i += 1 {
-                                is_selected := entity_props.sprite == full_assets_list.textures[i]
-                                if imgui.Selectable(strings.clone_to_cstring(full_assets_list.textures[i], context.temp_allocator), is_selected) {
-                                    entity_props.sprite = full_assets_list.textures[i]
+                                is_selected := entity_props.sprite == full_assets_list.textures[i].name
+                                if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
+                                    delete(entity_props.sprite)
+                                    entity_props.sprite = strings.clone_to_cstring(string(full_assets_list.textures[i].name))
                                 }
                                 if is_selected {
                                     imgui.SetItemDefaultFocus()
@@ -466,16 +511,78 @@ ui_show_right :: proc() {
                             }
                             imgui.EndCombo()
                         }
-                        imgui.InputInt4("Collider:", &entity_props.collider)
-                        imgui.InputFloat("Mass:", &entity_props.mass, 0.1, 1.0, "%.2f")
-                        imgui.InputFloat("Friction:", &entity_props.friction, 0.1, 1.0, "%.2f")
-                        imgui.InputFloat("Bounciness:", &entity_props.bounciness, 0.1, 1.0, "%.2f")
-                        imgui.Checkbox("Trigger:", &entity_props.trigger)
-                        imgui.Checkbox("No Gravity:", &entity_props.no_gravity)
                         imgui.Spacing()
-                        imgui.Text(fmt.ctprintf("Update: %s", entity_props.update))
-                        imgui.Text(fmt.ctprintf("On Collide Entity: %s", entity_props.on_collide_entity))
-                        imgui.Text(fmt.ctprintf("On Collide Tile: %s", entity_props.on_collide_tile))
+                        col := entity_props.collider
+                        imgui.Text(fmt.ctprintf("Collider: %d, %d, %d, %d", col.x, col.y, col.z, col.w))
+                        imgui.Button("Edit collider", imgui.Vec2{102, 25})
+                        imgui.Spacing()
+                        imgui.Text("Mass:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.SetNextItemWidth(114)
+                        imgui.InputFloat("##Mass", &entity_props.mass, 0.1, 1.0, "%.2f")
+                        imgui.Text("Friction:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.SetNextItemWidth(114)
+                        imgui.InputFloat("##Friction", &entity_props.friction, 0.1, 1.0, "%.2f")
+                        imgui.Text("Bounciness:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.SetNextItemWidth(114)
+                        imgui.InputFloat("##Bounciness", &entity_props.bounciness, 0.1, 1.0, "%.2f")
+                        imgui.Text("Trigger:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.Checkbox("##Trigger", &entity_props.trigger)
+                        imgui.Text("No Gravity:")
+                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                        imgui.Checkbox("##No Gravity", &entity_props.no_gravity)
+                        imgui.Spacing()
+                        imgui.Text("Update:")
+                        entity_props.script_file1 = ui_script_dropdown("##Update", entity_props.script_file1, &script_idx1)
+                        if imgui.BeginCombo("##UpdateScript", entity_props.update) {
+                            if entity_props.script_file1 != "None" {
+                                for i := 0; i < len(full_assets_list.scripts[script_idx1].list); i += 1 {
+                                    is_selected := entity_props.update == full_assets_list.scripts[script_idx1].list[i]
+                                    if imgui.Selectable(full_assets_list.scripts[script_idx1].list[i], is_selected) {
+                                        entity_props.update = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx1].list[i]))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
+                        imgui.Text("On Collide Entity:")
+                        entity_props.script_file2 = ui_script_dropdown("##On Collide Entity", entity_props.script_file2, &script_idx2)
+                        if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
+                            if entity_props.script_file2 != "None" {
+                                for i := 0; i < len(full_assets_list.scripts); i += 1 {
+                                    is_selected := entity_props.on_collide_entity == full_assets_list.scripts[script_idx2].list[i]
+                                    if imgui.Selectable(full_assets_list.scripts[script_idx2].list[i], is_selected) {
+                                        entity_props.on_collide_entity = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx2].list[i]))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
+                        imgui.Text("On Collide Tile:")
+                        entity_props.script_file3 = ui_script_dropdown("##On Collide Tile", entity_props.script_file3, &script_idx3)
+                        if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
+                            if entity_props.script_file3 != "None" {
+                                for i := 0; i < len(full_assets_list.scripts); i += 1 {
+                                    is_selected := entity_props.on_collide_tile == full_assets_list.scripts[script_idx3].list[i]
+                                    if imgui.Selectable(full_assets_list.scripts[script_idx3].list[i], is_selected) {
+                                        entity_props.on_collide_tile = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx3].list[i]))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
                         imgui.Spacing()
                         imgui.Spacing()
                         if imgui.Button("Apply") {
@@ -502,6 +609,38 @@ ui_show_right :: proc() {
         imgui.EndTabBar()
     }
     imgui.End()
+}
+
+ui_script_dropdown :: proc(id: cstring, script_file: cstring, idx: ^int) -> cstring {
+    tmp_file := script_file
+    if imgui.BeginCombo(id, script_file) {
+        for i := 0; i < len(full_assets_list.scripts); i += 1 {
+            if len(full_assets_list.scripts[i].list) == 0 {
+                continue
+            }
+            if full_assets_list.scripts[i].name == "" {
+                continue
+            }
+            is_selected := script_file == full_assets_list.scripts[i].name
+            if imgui.Selectable(full_assets_list.scripts[i].name, is_selected) {
+                tmp_file = full_assets_list.scripts[i].name
+                idx^ = i
+                switch id {
+                case "##Update":
+                    entity_props.update = "None"
+                case "##On Collide Entity":
+                    entity_props.on_collide_entity = "None"
+                case "##On Collide Tile":
+                    entity_props.on_collide_tile = "None"
+                }
+            }
+            if is_selected {
+                imgui.SetItemDefaultFocus()
+            }
+        }
+        imgui.EndCombo()
+    }
+    return tmp_file
 }
 
 string_type_to_type :: proc(value: cstring) -> Sprite_type {
@@ -619,7 +758,7 @@ ui_show_bottom :: proc() {
                     if imgui.Selectable("Create entity") {
                         fd, err := os.create(fmt.tprintf("%s\\NewEntity.ent", selected_folder))
                         if err != nil {
-
+                            
                         }
                         os.close(fd)
                     }
@@ -981,14 +1120,36 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
             switch ext {
             case ".png":
                 meta_create_sprite(info[i].fullpath)
-                append(&full_assets_list.textures, strings.clone(info[i].fullpath))
+                name := strings.clone_to_cstring(os.short_stem(info[i].fullpath))
+                item: Asset_list_item= {strings.clone(info[i].fullpath), name}
+                append(&full_assets_list.textures, item)
             case ".wav":
                 meta_create_audio(info[i].fullpath)
                 append(&full_assets_list.audio, strings.clone(info[i].fullpath))
             case ".odin":
-                append(&full_assets_list.scripts, strings.clone(info[i].fullpath))
+                file_name := os.short_stem(info[i].fullpath)
+                name: cstring
+                list: [dynamic]cstring
+                append(&list, strings.clone_to_cstring("None"))
+                if strings.starts_with(file_name, "e2d") {
+                    name = strings.clone_to_cstring("")
+                } else {
+                    name = strings.clone_to_cstring(file_name)
+                    data, _ := os.read_entire_file(info[i].fullpath, context.temp_allocator)
+                    it := string(data)
+                    for line in strings.split_lines_iterator(&it) {
+                        if strings.contains(line, " :: proc(") {
+                            if strings.starts_with(line, "/*") || strings.starts_with(line, "//") {
+                                continue
+                            }
+                            substr, _ := strings.substring(line, 0, strings.index(line, " "))
+                            append(&list, strings.clone_to_cstring(substr))
+                        }  
+                    }
+                }
+                item: Asset_list_script = {strings.clone(info[i].fullpath), name, list}
+                append(&full_assets_list.scripts, item)
             case ".ent":
-                meta_create_entity(info[i].fullpath)
                 append(&full_assets_list.entities, strings.clone(info[i].fullpath))
             }
         }
@@ -1078,7 +1239,6 @@ build_asset_list :: proc(path: string) {
     fd, _ := os.open(path)
     info, _ := os.read_dir(fd, -1, context.temp_allocator)
     length := len(info)
-    idx := 0
     for i := 0; i < length; i += 1 {
         if info[i].type != os.File_Type.Regular {
             continue
@@ -1092,7 +1252,6 @@ build_asset_list :: proc(path: string) {
             asset.type = .Sprite
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
-            idx += 1
         case ".wav":
             asset: Asset
             asset.name = strings.clone_to_cstring(info[i].name)
@@ -1101,7 +1260,6 @@ build_asset_list :: proc(path: string) {
             asset.type = .Sound
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
-            idx += 1
         case ".odin":
             asset: Asset
             asset.name = strings.clone_to_cstring(info[i].name)
@@ -1110,7 +1268,6 @@ build_asset_list :: proc(path: string) {
             asset.type = .Script
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
-            idx += 1
         case ".ent":
             asset: Asset
             asset.name = strings.clone_to_cstring(info[i].name)
@@ -1119,7 +1276,6 @@ build_asset_list :: proc(path: string) {
             asset.type = .Entity
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
-            idx += 1
         }
     }
     if len(assets_list) > 0 {
@@ -1128,12 +1284,12 @@ build_asset_list :: proc(path: string) {
 }
 
 build_assets :: proc() {
-    file_path := fmt.tprintf("%s\\source\\resources.odin", project_path)
+    file_path := fmt.tprintf("%s\\source\\e2d_resources.odin", project_path)
     sprites_count := 1
     tilemaps_count := 1
     fonts_count := 1
     sounds_count := 1
-    sprite_map: map[string]int
+    sprite_map: map[cstring]int
     tilemap_map: map[string]int
     font_map: map[string]int
     sound_map: map[string]int
@@ -1142,8 +1298,8 @@ build_assets :: proc() {
     os.write_string(fd, "#+feature dynamic-literals\n")
     os.write_string(fd, "package main\n\nload_textures :: proc() {\n")
     for i := 0; i < len(full_assets_list.textures); i += 1 {
-        meta := meta_load_sprite(full_assets_list.textures[i])
-        path, _ := os.get_relative_path(project_path, full_assets_list.textures[i], context.temp_allocator)
+        meta := meta_load_sprite(full_assets_list.textures[i].path)
+        path, _ := os.get_relative_path(project_path, full_assets_list.textures[i].path, context.temp_allocator)
         path, _ = strings.replace(path, "\\", "/", -1, context.temp_allocator)
         switch meta.type {
         case .Sprite:
@@ -1151,7 +1307,7 @@ build_assets :: proc() {
             if meta.is_slice9 {
                 os.write_string(fd, fmt.tprintf("\tsprites[%d].slice9 = {{%d, %d, %d, %d}}\n", sprites_count - 1, meta.slice9[0], meta.slice9[1], meta.slice9[2], meta.slice9[3]))
             }
-            sprite_map[os.short_stem(path)] = sprites_count - 1
+            sprite_map[full_assets_list.textures[i].name] = sprites_count - 1
             sprites_count += 1
         case .Tilemap:
             os.write_string(fd, fmt.tprintf("\ttilemaps[%d] = tilemap_load_tileset(#load(\"../%s\"))\n", tilemaps_count - 1, path))
@@ -1214,11 +1370,11 @@ build_assets :: proc() {
 add_asset :: proc(path: string, ext: string) {
     switch ext {
     case ".png":    
-        append(&full_assets_list.textures, strings.clone(path))
+        append(&full_assets_list.textures, Asset_list_item{strings.clone(path), strings.clone_to_cstring(os.short_stem(path))})
     case ".wav":
         append(&full_assets_list.audio, strings.clone(path))
     case ".odin":
-        append(&full_assets_list.scripts, strings.clone(path))
+        append(&full_assets_list.scripts, Asset_list_script{strings.clone(path), strings.clone_to_cstring(os.short_stem(path)), {}})
     case ".ent":
         append(&full_assets_list.entities, strings.clone(path))
     }
@@ -1226,7 +1382,7 @@ add_asset :: proc(path: string, ext: string) {
 
 remove_asset :: proc(path: string, ext: string) {
     for i := 0; i < len(full_assets_list.textures); i += 1 {
-        if full_assets_list.textures[i] == path {
+        if full_assets_list.textures[i].path == path {
             switch ext {
             case ".png":
                 unordered_remove(&full_assets_list.textures, i)
