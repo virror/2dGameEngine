@@ -154,8 +154,7 @@ get_audio_data :: proc(path: string, props: ^Audio_props) {
     props.sample_rate = spec.freq
 }
 
-meta_create_entity :: proc(apa: string) {
-    path := fmt.tprintf("%s.meta", apa)
+meta_create_entity :: proc(path: string) {
     if !os.exists(path) {
         fd, err := os.create(path)
         defer os.close(fd)
@@ -165,7 +164,7 @@ meta_create_entity :: proc(apa: string) {
         
         writer := os.to_writer(fd)
         ini.write_pair(writer, "sprite", "")
-        ini.write_pair(writer, "collider", [4]i32{0, 0, 0, 0})
+        ini.write_pair(writer, "collider", [4]i32{0, 1, 0, 1})
         ini.write_pair(writer, "mass", 1.0)
         ini.write_pair(writer, "friction", 0.0)
         ini.write_pair(writer, "bounciness", 0.0)
@@ -213,6 +212,14 @@ meta_load_entity :: proc(path: string) -> Entity_props {
     if err != nil {
         panic(fmt.tprintf("Failed to open entity %s.", path))
     }
+
+    delete(entity_props.sprite)
+    delete(entity_props.script_file1)
+    delete(entity_props.script_file2)
+    delete(entity_props.script_file3)
+    delete(entity_props.update)
+    delete(entity_props.on_collide_entity)
+    delete(entity_props.on_collide_tile)
 
     props: Entity_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)

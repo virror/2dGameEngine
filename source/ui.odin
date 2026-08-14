@@ -112,7 +112,9 @@ entity_props: Entity_props
 @(private="file")
 assets_list: [dynamic]Asset
 @(private="file")
-filter: sdl.DialogFileFilter = {name = "2d engine project", pattern = "2de"}
+filter_2de: sdl.DialogFileFilter = {name = "2d engine project", pattern = "2de"}
+@(private="file")
+filter_ent: sdl.DialogFileFilter = {name = "Entity file", pattern = "ent"}
 @(private="file")
 set_console_focus: bool = false
 @(private="file")
@@ -688,7 +690,7 @@ ui_show_top :: proc() {
 
 clean_project :: proc() {
     project_loaded = false
-    project_path = ""
+    project_path = strings.clone("")
     fsw.destroy(file_watcher)
 }
 
@@ -756,11 +758,8 @@ ui_show_bottom :: proc() {
 
                 if imgui.BeginPopupContextItem(nil, imgui.PopupFlags_MouseButtonRight) {
                     if imgui.Selectable("Create entity") {
-                        fd, err := os.create(fmt.tprintf("%s\\NewEntity.ent", selected_folder))
-                        if err != nil {
-                            
-                        }
-                        os.close(fd)
+                        tmp_file := fmt.ctprintf("%s\\NewEntity.ent", selected_folder)
+                        sdl.ShowSaveFileDialog(save_callback, nil, nil, &filter_ent, 1, tmp_file)
                     }
                     imgui.EndPopup()
                 }
@@ -789,6 +788,14 @@ ui_show_bottom :: proc() {
         imgui.EndTabBar()
     }
     imgui.End()
+}
+
+save_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) {
+    context = runtime.default_context()
+    if filelist[0] == "" {
+        return
+    }
+    meta_create_entity(string(filelist[0]))
 }
 
 selected_node: ^Folder_node
@@ -858,9 +865,10 @@ draw_asset_items :: proc() {
                 sprite_props = meta_load_sprite(assets_list[i].path)
             case .Sound:
                 audio_props = meta_load_audio(assets_list[i].path, true)
+            case .Entity:
+                entity_props = meta_load_entity(assets_list[i].path)
             case .Script:
             case .Unknown:
-            case .Entity:
                 //Do nothing atm
             }
         }
@@ -973,6 +981,8 @@ ui_show_new_project :: proc() {
                     create_folder_tree()
                     selected_node = &root_folder
                     recent_add(file_path)
+                    delete(selected_folder)
+                    selected_folder = strings.clone(project_path)
                     project_loaded = true
                     imgui.CloseCurrentPopup()
                 }
@@ -1002,7 +1012,7 @@ ui_show_open_project :: proc() {
     imgui.SetNextWindowSize(imgui.Vec2{300, 300})
     if imgui.BeginPopupModal("Open Project", nil, window_flags) {
         if imgui.Button("Select project") {
-            sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter, 1, nil, false)
+            sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter_2de, 1, nil, false)
         }
         imgui.SameLine(140, 0)
         if imgui.Button("Back") {
@@ -1051,6 +1061,8 @@ open_project :: proc(path: string) {
     assert(err == nil)
 
     recent_add(path)
+    delete(selected_folder)
+    selected_folder = strings.clone(project_path)
     show_working = false
     imgui.ClosePopupToLevel(0, true)
     project_loaded = true
