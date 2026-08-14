@@ -97,28 +97,8 @@ main :: proc() {
         time_delta := f32(time_start - time_last) / performance_freq
 
         handle_events()
-        input_update(time_delta)
-        ui_process()
-
-        /*if pause == false {
-            // Update
-            for &e, i in entities {
-                if entities[i].type != .empty {
-                    if e.update != nil {
-                        e->update(time_delta)
-                    }
-                    entity_animate(&e, time_delta)
-                    collide_tiles(&e, time_delta)
-                }
-            }
-            collide_entities()
-        }*/
-
-        for i := 0; i < ENTITY_COUNT; i += 1 {
-            if entities[i].type != .empty && entities[i].marked_for_destruction {
-                actually_destroy_entity(&entities[i])
-            }
-        }
+        //input_update(time_delta)
+        //ui_process()
 
         ui_update()
 
@@ -135,28 +115,12 @@ main :: proc() {
         ui_render()
 
         render_post(io)
+        console_print()
 
-        if stdout_args != nil {
-            buf1: [256]u8
-            buf2: [256]u8
-            has_data1, _ := os.pipe_has_data(stdout_args)
-            if has_data1 {
-                n, _ := os.read(stdout_args, buf1[:])
-                console_add_line(strings.clone(string(buf1[:n])))
-            }
-            has_data2, _ := os.pipe_has_data(stderr_args)
-            if has_data2 {
-                n, _ := os.read(stderr_args, buf2[:])
-                console_add_line(strings.clone(string(buf2[:n])))
-            }
-
-            state, _ := os.process_wait(process, 0)
-            if state.exited {
-                os.close(stdout_args)
-                os.close(stderr_args)
-                stdout_args = nil
-                stderr_args = nil
-            }
+        poll_timer += time_delta
+        if poll_timer >= 0.5 {
+            poll_timer = 0.0
+            poll_files()
         }
 
         when ODIN_DEBUG {
@@ -166,80 +130,103 @@ main :: proc() {
             }
         }
 
-        poll_timer += time_delta
-        if poll_timer >= 0.5 {
-            poll_timer = 0.0
-            events := fsw.get_events(&file_watcher)
-            defer fsw.delete_events(events)
-
-            for event in events {
-                is_dir := os.ext(event.path) == ""
-                #partial switch event.kind {
-                case .Added:
-                    if is_dir {
-                        parts := strings.split(event.path, "\\", context.temp_allocator)
-                        name := parts[len(parts) - 1]
-                        path := parts[len(parts) - 2]
-                        folder_add(path, name, &root_folder)
-                    } else {
-                        ext := os.ext(event.path)
-                        switch ext {
-                        case ".png":
-                            meta_create_sprite(event.path)
-                            add_asset(event.path, ext)
-                        case ".wav":
-                            meta_create_audio(event.path)
-                            add_asset(event.path, ext)
-                        case ".odin":
-                            add_asset(event.path, ext)
-                        }
-                    }
-                case .Removed:
-                    if is_dir {
-                        parts := strings.split(event.path, "\\", context.temp_allocator)
-                        name := parts[len(parts) - 1]
-                        folder_remove(name, &root_folder)
-                    } else {
-                        ext := os.ext(event.path)
-                        switch ext {
-                        case ".png",
-                             ".wav":
-                            path := fmt.tprintf("%s.meta", event.path)
-                            if os.exists(path) {
-                                os.remove(path)
-                            }
-                            remove_asset(event.path, ext)
-                        case ".odin":
-                            remove_asset(event.path, ext)
-                        }
-                    }
-                case .Renamed:
-                    if is_dir {
-                        if renaming {
-                            renaming = false
-                            parts := strings.split(event.path, "\\", context.temp_allocator)
-                            new_name := parts[len(parts) - 1]
-                            folder_rename(old_name, new_name, &root_folder)
-                        } else {
-                            renaming = true
-                            parts := strings.split(event.path, "\\", context.temp_allocator)
-                            old_name = parts[len(parts) - 1]
-                        }
-                    }
-                    //TODO: Handle file renames
-                case .Modified:
-                    fmt.println(event)   
-                }
-            }
-            if len(events) > 0 {
-                rebuild_asset_list()
-            }
-        }
-
         // Each frame, free all memory allocated by things such as tprint
         free_all(context.temp_allocator)
 
         time_last = time_start
+    }
+}
+
+console_print :: proc() {
+    if stdout_args != nil {
+        buf1: [256]u8
+        buf2: [256]u8
+        has_data1, _ := os.pipe_has_data(stdout_args)
+        if has_data1 {
+            n, _ := os.read(stdout_args, buf1[:])
+            console_add_line(strings.clone(string(buf1[:n])))
+        }
+        has_data2, _ := os.pipe_has_data(stderr_args)
+        if has_data2 {
+            n, _ := os.read(stderr_args, buf2[:])
+            console_add_line(strings.clone(string(buf2[:n])))
+        }
+
+        state, _ := os.process_wait(process, 0)
+        if state.exited {
+            os.close(stdout_args)
+            os.close(stderr_args)
+            stdout_args = nil
+            stderr_args = nil
+        }
+    }
+}
+
+poll_files :: proc() {
+    events := fsw.get_events(&file_watcher)
+    defer fsw.delete_events(events)
+
+    for event in events {
+        is_dir := os.ext(event.path) == ""
+        #partial switch event.kind {
+        case .Added:
+            if is_dir {
+                parts := strings.split(event.path, "\\", context.temp_allocator)
+                name := parts[len(parts) - 1]
+                path := parts[len(parts) - 2]
+                folder_add(path, name, &root_folder)
+            } else {
+                ext := os.ext(event.path)
+                switch ext {
+                case ".png":
+                    meta_create_sprite(event.path)
+                    add_asset(event.path, ext)
+                case ".wav":
+                    meta_create_audio(event.path)
+                    add_asset(event.path, ext)
+                case ".odin":
+                    add_asset(event.path, ext)
+                }
+            }
+        case .Removed:
+            if is_dir {
+                parts := strings.split(event.path, "\\", context.temp_allocator)
+                name := parts[len(parts) - 1]
+                folder_remove(name, &root_folder)
+            } else {
+                ext := os.ext(event.path)
+                switch ext {
+                case ".png",
+                        ".wav":
+                    path := fmt.tprintf("%s.meta", event.path)
+                    if os.exists(path) {
+                        os.remove(path)
+                    }
+                    remove_asset(event.path, ext)
+                case ".odin":
+                    remove_asset(event.path, ext)
+                }
+            }
+        case .Renamed:
+            if is_dir {
+                if renaming {
+                    renaming = false
+                    parts := strings.split(event.path, "\\", context.temp_allocator)
+                    new_name := parts[len(parts) - 1]
+                    folder_rename(old_name, new_name, &root_folder)
+                } else {
+                    renaming = true
+                    parts := strings.split(event.path, "\\", context.temp_allocator)
+                    old_name = parts[len(parts) - 1]
+                }
+            }
+            //TODO: Handle file renames
+        case .Modified:
+            fmt.println(event)   
+        }
+    }
+    if len(events) > 0 {
+        rebuild_asset_list()
     }
 }
 
