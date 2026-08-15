@@ -62,10 +62,16 @@ Asset_list_item :: struct {
 }
 
 @(private="file")
+Script_content :: struct {
+    name: cstring,
+    signature: cstring,
+}
+
+@(private="file")
 Asset_list_script :: struct {
     path: string,
     name: cstring,
-    list: [dynamic]cstring,
+    func: [dynamic]Script_content,
 }
 
 @(private="file")
@@ -183,10 +189,11 @@ ui_cleanup :: proc() {
     for asset in full_assets_list.scripts {
         delete(asset.path)
         delete(asset.name)
-        for apa in asset.list {
-            delete(apa)
+        for apa in asset.func {
+            delete(apa.name)
+            delete(apa.signature)
         }
-        delete(asset.list)
+        delete(asset.func)
     }
     delete(full_assets_list.scripts)
     fmt.println("4")
@@ -542,14 +549,18 @@ ui_show_right :: proc() {
                         imgui.Checkbox("##No Gravity", &entity_props.no_gravity)
                         imgui.Spacing()
                         imgui.Text("Update:")
-                        entity_props.script_file1 = ui_script_dropdown("##Update", entity_props.script_file1, &script_idx1)
+                        imgui.Text("(self: ^Entity, delta_time: f32)")
+                        ui_script_dropdown("##Update", &entity_props.script_file1, &script_idx1)
                         if imgui.BeginCombo("##UpdateScript", entity_props.update) {
                             if entity_props.script_file1 != "None" {
-                                for i := 0; i < len(full_assets_list.scripts[script_idx1].list); i += 1 {
-                                    is_selected := entity_props.update == full_assets_list.scripts[script_idx1].list[i]
-                                    if imgui.Selectable(full_assets_list.scripts[script_idx1].list[i], is_selected) {
+                                for func in full_assets_list.scripts[script_idx1].func {
+                                    if !strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") {
+                                       continue 
+                                    }
+                                    is_selected := entity_props.update == func.name
+                                    if imgui.Selectable(func.name, is_selected) {
                                         delete(entity_props.update)
-                                        entity_props.update = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx1].list[i]))
+                                        entity_props.update = strings.clone_to_cstring(string(func.name))
                                     }
                                     if is_selected {
                                         imgui.SetItemDefaultFocus()
@@ -559,14 +570,18 @@ ui_show_right :: proc() {
                             imgui.EndCombo()
                         }
                         imgui.Text("On Collide Entity:")
-                        entity_props.script_file2 = ui_script_dropdown("##On Collide Entity", entity_props.script_file2, &script_idx2)
+                        imgui.Text("(self: ^Entity, other: ^Entity)")
+                        ui_script_dropdown("##On Collide Entity", &entity_props.script_file2, &script_idx2)
                         if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
                             if entity_props.script_file2 != "None" {
-                                for i := 0; i < len(full_assets_list.scripts[script_idx2].list); i += 1 {
-                                    is_selected := entity_props.on_collide_entity == full_assets_list.scripts[script_idx2].list[i]
-                                    if imgui.Selectable(full_assets_list.scripts[script_idx2].list[i], is_selected) {
+                                for func in full_assets_list.scripts[script_idx2].func {
+                                    if !strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
+                                       continue 
+                                    }
+                                    is_selected := entity_props.on_collide_entity == func.name
+                                    if imgui.Selectable(func.name, is_selected) {
                                         delete(entity_props.on_collide_entity)
-                                        entity_props.on_collide_entity = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx2].list[i]))
+                                        entity_props.on_collide_entity = strings.clone_to_cstring(string(func.name))
                                     }
                                     if is_selected {
                                         imgui.SetItemDefaultFocus()
@@ -576,14 +591,18 @@ ui_show_right :: proc() {
                             imgui.EndCombo()
                         }
                         imgui.Text("On Collide Tile:")
-                        entity_props.script_file3 = ui_script_dropdown("##On Collide Tile", entity_props.script_file3, &script_idx3)
+                        imgui.Text("(self: ^Entity, collide_info: Vector2)")
+                        ui_script_dropdown("##On Collide Tile", &entity_props.script_file3, &script_idx3)
                         if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
                             if entity_props.script_file3 != "None" {
-                                for i := 0; i < len(full_assets_list.scripts[script_idx3].list); i += 1 {
-                                    is_selected := entity_props.on_collide_tile == full_assets_list.scripts[script_idx3].list[i]
-                                    if imgui.Selectable(full_assets_list.scripts[script_idx3].list[i], is_selected) {
+                                for func in full_assets_list.scripts[script_idx3].func {
+                                    if !strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") {
+                                       continue 
+                                    }
+                                    is_selected := entity_props.on_collide_tile == func.name
+                                    if imgui.Selectable(func.name, is_selected) {
                                         delete(entity_props.on_collide_tile)
-                                        entity_props.on_collide_tile = strings.clone_to_cstring(string(full_assets_list.scripts[script_idx3].list[i]))
+                                        entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
                                     }
                                     if is_selected {
                                         imgui.SetItemDefaultFocus()
@@ -620,19 +639,19 @@ ui_show_right :: proc() {
     imgui.End()
 }
 
-ui_script_dropdown :: proc(id: cstring, script_file: cstring, idx: ^int) -> cstring {
-    tmp_file := script_file
-    if imgui.BeginCombo(id, script_file) {
+ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
+    if imgui.BeginCombo(id, script_file^) {
         for i := 0; i < len(full_assets_list.scripts); i += 1 {
-            if len(full_assets_list.scripts[i].list) == 0 {
+            if len(full_assets_list.scripts[i].func) == 0 {
                 continue
             }
             if full_assets_list.scripts[i].name == "" {
                 continue
             }
-            is_selected := script_file == full_assets_list.scripts[i].name
+            is_selected := script_file^ == full_assets_list.scripts[i].name
             if imgui.Selectable(full_assets_list.scripts[i].name, is_selected) {
-                tmp_file = strings.clone_to_cstring(string(full_assets_list.scripts[i].name))
+                delete(script_file^)
+                script_file^ = strings.clone_to_cstring(string(full_assets_list.scripts[i].name))
                 idx^ = i
                 switch id {
                 case "##Update":
@@ -652,7 +671,6 @@ ui_script_dropdown :: proc(id: cstring, script_file: cstring, idx: ^int) -> cstr
         }
         imgui.EndCombo()
     }
-    return tmp_file
 }
 
 string_type_to_type :: proc(value: cstring) -> Sprite_type {
@@ -1168,8 +1186,8 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
             case ".odin":
                 file_name := os.short_stem(info[i].fullpath)
                 name: cstring
-                list: [dynamic]cstring
-                append(&list, strings.clone_to_cstring("None"))
+                list: [dynamic]Script_content
+                append(&list, Script_content{strings.clone_to_cstring("None"), strings.clone_to_cstring("")})
                 if strings.starts_with(file_name, "e2d") {
                     name = strings.clone_to_cstring("")
                 } else {
@@ -1181,8 +1199,8 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
                             if strings.starts_with(line, "/*") || strings.starts_with(line, "//") {
                                 continue
                             }
-                            substr, _ := strings.substring(line, 0, strings.index(line, " "))
-                            append(&list, strings.clone_to_cstring(substr))
+                            new_string :=strings.split(line, " :: ", context.temp_allocator)
+                            append(&list, Script_content{strings.clone_to_cstring(new_string[0]), strings.clone_to_cstring(new_string[1])})
                         }  
                     }
                 }
