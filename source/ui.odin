@@ -4,6 +4,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "core:math"
 import "core:time"
 import sdl "vendor:sdl3"
 import "../../imgui"
@@ -39,6 +40,15 @@ Asset :: struct {
     texture: Texture,
     type: Asset_type,
     path: string,
+}
+
+@(private="file")
+Collider_editor :: struct {
+    texture: i32,
+    size: Vector2,
+    frames: Vector2,
+    frameX: i32,
+    frameY: i32,
 }
 
 @(private="file")
@@ -102,6 +112,8 @@ show_colorpicker: bool = false
 @(private="file")
 show_working: bool = false
 @(private="file")
+show_edit_collider: bool = false
+@(private="file")
 file_not_found: string = ""
 @(private="file")
 console_output: [dynamic]string
@@ -140,6 +152,8 @@ loaded_track: ^mix.Track
 stdout_args: ^os.File
 stderr_args: ^os.File
 process: os.Process
+@(private="file")
+collider_editor: Collider_editor = {-1, Vector2{0, 0}, Vector2{0, 0}, 0, 0}
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -293,6 +307,11 @@ ui_update :: proc() {
         show_open_project = false
     }
     ui_show_open_project()
+    if show_edit_collider {
+        imgui.OpenPopup("Edit Collider")
+        show_edit_collider = false
+    }
+    ui_edit_collider()
     if show_colorpicker {
         ui_show_colorpicker()
     }
@@ -527,7 +546,26 @@ ui_show_right :: proc() {
                         imgui.Spacing()
                         col := entity_props.collider
                         imgui.Text(fmt.ctprintf("Collider: %d, %d, %d, %d", col.x, col.y, col.z, col.w))
-                        imgui.Button("Edit collider", imgui.Vec2{102, 25})
+                        if imgui.Button("Edit collider", imgui.Vec2{102, 25}) {
+                            for tex in full_assets_list.textures {
+                                if tex.name == entity_props.sprite {
+                                    if collider_editor.texture != -1 {
+                                        texture_destroy(u32(collider_editor.texture))
+                                    }
+                                    texture, size := texture_from_name(tex.path)
+                                    props := meta_load_sprite(tex.path)
+                                    collider_editor.frames = {f32(props.frames.x), f32(props.frames.y)}
+                                    collider_editor.texture, collider_editor.size = i32(texture), size
+                                    entity_props.collider = {0, i32(size.y * (1 / collider_editor.frames.y)), 0, i32(size.x * (1 / collider_editor.frames.x))}
+                                    collider_editor.frameX = 0
+                                    collider_editor.frameY = 0
+                                    break
+                                }
+                            }
+                            if (collider_editor.texture != -1) {
+                                show_edit_collider = true
+                            }
+                        }
                         imgui.Spacing()
                         imgui.Text("Mass:")
                         imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
@@ -637,6 +675,93 @@ ui_show_right :: proc() {
         imgui.EndTabBar()
     }
     imgui.End()
+}
+
+ui_edit_collider :: proc() {
+    mul :f32= 3.0
+    win_size: imgui.Vec2
+    frame_size := imgui.Vec2{1 / f32(collider_editor.frames.x), 1 / f32(collider_editor.frames.y)}
+    tex_offset1 := imgui.Vec2{frame_size.x * f32(collider_editor.frameX), frame_size.y * f32(collider_editor.frameY)}
+    tex_offset2 := imgui.Vec2{frame_size.x * f32(collider_editor.frameX + 1), frame_size.y * f32(collider_editor.frameY + 1)}
+    x_size := collider_editor.size.x * frame_size.x * mul
+    y_size := collider_editor.size.y * frame_size.y * mul
+    max_x := math.max(x_size, 200)
+    if collider_editor.frames.x == 1 && collider_editor.frames.y == 1 {
+        win_size = imgui.Vec2{max_x, y_size + 160}
+    } else if collider_editor.frames.x > 1 && collider_editor.frames.y > 1 {
+        win_size = imgui.Vec2{max_x, y_size + 220}
+    } else {
+        win_size = imgui.Vec2{max_x, y_size + 190}
+    }
+    img_offset_x := (win_size.x / 2) - (x_size / 2)
+
+    imgui.SetNextWindowPos(viewport.Pos + viewport.Size / 2, .Always, imgui.Vec2{0.5, 0.5})
+    imgui.SetNextWindowSize(win_size)
+    if imgui.BeginPopupModal("Edit Collider", nil, window_flags) {
+        imgui.SetCursorPos(imgui.Vec2{img_offset_x, 0})
+        imgui.Image(texture_to_image(u32(collider_editor.texture)), imgui.Vec2{x_size, y_size}, tex_offset1, tex_offset2)
+        pos1 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.z) * mul, f32(entity_props.collider.x) * mul}
+        pos2 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.w) * mul, f32(entity_props.collider.y) * mul}
+        pos1.x += img_offset_x
+        pos2.x += img_offset_x
+        ui_draw_rect(pos1, pos2)
+        if collider_editor.frames.y > 1 {
+            if imgui.ImageButton("Up", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.333, 0.666}, imgui.Vec2{0.666, 1}) {
+                collider_editor.frameY -= 1
+                if collider_editor.frameY < 0 {
+                    collider_editor.frameY = i32(collider_editor.frames.y) - 1
+                }
+            }
+            imgui.SameLine(45, 0)
+            if imgui.ImageButton("Down", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0, 0.666}, imgui.Vec2{0.333, 1}) {
+                collider_editor.frameY += 1
+                if collider_editor.frameY >= i32(collider_editor.frames.y) {
+                    collider_editor.frameY = 0
+                }
+            }
+            imgui.SetCursorPos(imgui.Vec2{90, imgui.GetCursorPos().y - 25})
+            imgui.Text(fmt.ctprintf("Clip: %d", collider_editor.frameY))
+        }
+        if collider_editor.frames.x > 1 {
+            if imgui.ImageButton("Left", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.666, 0.333}, imgui.Vec2{1, 0.666}) {
+                collider_editor.frameX -= 1
+                if collider_editor.frameX < 0 {
+                    collider_editor.frameX = i32(collider_editor.frames.x) - 1
+                }
+            }
+            imgui.SameLine(45, 0)
+            if imgui.ImageButton("Right", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.333, 0.333}, imgui.Vec2{0.666, 0.666}) {
+                collider_editor.frameX += 1
+                if collider_editor.frameX >= i32(collider_editor.frames.x) {
+                    collider_editor.frameX = 0
+                }
+            }
+            imgui.SetCursorPos(imgui.Vec2{90, imgui.GetCursorPos().y - 25})
+            imgui.Text(fmt.ctprintf("Frame: %d", collider_editor.frameX))
+        }
+        imgui.Spacing()
+        imgui.Text("Top:")
+        imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+        imgui.SetNextItemWidth(120)
+        imgui.InputInt("##ColliderX", &entity_props.collider.x)
+        imgui.Text("Bottom:")
+        imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+        imgui.SetNextItemWidth(120)
+        imgui.InputInt("##ColliderY", &entity_props.collider.y)
+        imgui.Text("Left:")
+        imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+        imgui.SetNextItemWidth(120)
+        imgui.InputInt("##ColliderW", &entity_props.collider.z)
+        imgui.Text("Right:")
+        imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+        imgui.SetNextItemWidth(120)
+        imgui.InputInt("##ColliderH", &entity_props.collider.w)
+        imgui.Spacing()
+        if imgui.Button("Close") {
+            imgui.CloseCurrentPopup()
+        }
+        imgui.EndPopup()
+    }
 }
 
 ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
@@ -965,6 +1090,12 @@ ui_draw_line :: proc(pos1: imgui.Vec2, pos2: imgui.Vec2) {
     draw_list := imgui.GetWindowDrawList()
     thickness: f32 = 2.0
     imgui.DrawList_AddLine(draw_list, pos1, pos2, 0xFF4c4542, thickness)
+}
+
+ui_draw_rect :: proc(pos1: imgui.Vec2, pos2: imgui.Vec2) {
+    draw_list := imgui.GetForegroundDrawList()
+    thickness: f32 = 1.0
+    imgui.DrawList_AddRect(draw_list, pos1, pos2, 0xFF5555FF, 0, thickness)
 }
 
 @(private="file")
