@@ -22,7 +22,7 @@ Asset_type :: enum {
     Script,
 }
 
-Sprite_type :: enum {
+Texture_type :: enum {
     Sprite,
     Tilemap,
     Font,
@@ -798,7 +798,7 @@ ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
     }
 }
 
-string_type_to_type :: proc(value: cstring) -> Sprite_type {
+string_type_to_type :: proc(value: cstring) -> Texture_type {
     switch value {
     case "Sprite":
         return .Sprite
@@ -1315,34 +1315,38 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
                 meta_create_audio(info[i].fullpath)
                 append(&full_assets_list.audio, strings.clone(info[i].fullpath))
             case ".odin":
-                file_name := os.short_stem(info[i].fullpath)
-                name: cstring
-                list: [dynamic]Script_content
-                append(&list, Script_content{strings.clone_to_cstring("None"), strings.clone_to_cstring("")})
-                if strings.starts_with(file_name, "e2d") {
-                    name = strings.clone_to_cstring("")
-                } else {
-                    name = strings.clone_to_cstring(file_name)
-                    data, _ := os.read_entire_file(info[i].fullpath, context.temp_allocator)
-                    it := string(data)
-                    for line in strings.split_lines_iterator(&it) {
-                        if strings.contains(line, " :: proc(") {
-                            if strings.starts_with(line, "/*") || strings.starts_with(line, "//") {
-                                continue
-                            }
-                            new_string :=strings.split(line, " :: ", context.temp_allocator)
-                            append(&list, Script_content{strings.clone_to_cstring(new_string[0]), strings.clone_to_cstring(new_string[1])})
-                        }  
-                    }
-                }
-                item: Asset_list_script = {strings.clone(info[i].fullpath), name, list}
-                append(&full_assets_list.scripts, item)
+                list_add_script(info[i].fullpath)
             case ".ent":
                 append(&full_assets_list.entities, strings.clone(info[i].fullpath))
             }
         }
     }
     os.close(fd)
+}
+
+list_add_script :: proc(fullpath: string) {
+    file_name := os.short_stem(fullpath)
+    name: cstring
+    list: [dynamic]Script_content
+    append(&list, Script_content{strings.clone_to_cstring("None"), strings.clone_to_cstring("")})
+    if strings.starts_with(file_name, "e2d") {
+        name = strings.clone_to_cstring("")
+    } else {
+        name = strings.clone_to_cstring(file_name)
+        data, _ := os.read_entire_file(fullpath, context.temp_allocator)
+        it := string(data)
+        for line in strings.split_lines_iterator(&it) {
+            if strings.contains(line, " :: proc(") {
+                if strings.starts_with(line, "/*") || strings.starts_with(line, "//") {
+                    continue
+                }
+                new_string :=strings.split(line, " :: ", context.temp_allocator)
+                append(&list, Script_content{strings.clone_to_cstring(new_string[0]), strings.clone_to_cstring(new_string[1])})
+            }  
+        }
+    }
+    item: Asset_list_script = {strings.clone(fullpath), name, list}
+    append(&full_assets_list.scripts, item)
 }
 
 clean_folder :: proc(node: ^Folder_node) {

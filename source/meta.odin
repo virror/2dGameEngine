@@ -9,7 +9,7 @@ import sdl "vendor:sdl3"
 import mix "vendor:sdl3/mixer"
 
 Sprite_props :: struct {
-    type: Sprite_type,
+    type: Texture_type,
     frames: [2]i32,
     slice9: [4]i32,
     is_slice9: bool,
@@ -48,7 +48,7 @@ meta_create_sprite :: proc(asset: string) {
         }
         
         writer := os.to_writer(fd)
-        ini.write_pair(writer, "type", int(Sprite_type.Sprite))
+        ini.write_pair(writer, "type", int(Texture_type.Sprite))
         ini.write_pair(writer, "frames", [2]i32{1, 1})
         ini.write_pair(writer, "slice9", [4]i32{0, 0, 0, 0})
     }
@@ -128,7 +128,7 @@ meta_load_audio :: proc(asset: string, load_audio_data: bool) -> Audio_props {
     props.preload, _ = strconv.parse_bool(ini_map[""]["preload"])
 
     if load_audio_data {
-        delete(props.duration)
+        delete(audio_props.duration)
         get_audio_data(asset, &props)
     }
     return props
@@ -280,7 +280,7 @@ string_to_f32_4 :: proc(value: string) -> [4]f32 {
     return [4]f32{float1, float2, float3, float4}
 }
 
-string_to_type :: proc(value: string) -> Sprite_type {
+string_to_type :: proc(value: string) -> Texture_type {
     switch value {
     case "0":
         return .Sprite

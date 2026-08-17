@@ -219,14 +219,93 @@ poll_files :: proc() {
                     parts := strings.split(event.path, "\\", context.temp_allocator)
                     old_name = parts[len(parts) - 1]
                 }
+            } else {
+                if renaming {
+                    renaming = false
+                    ext := os.ext(event.path)
+                    switch ext {
+                    case ".png":
+                        for i in 0..<len(full_assets_list.textures) {
+                            texture := &full_assets_list.textures[i]
+                            if texture.path == old_name {
+                                delete(texture.path)
+                                delete(texture.name)
+                                texture.path = strings.clone(event.path)
+                                texture.name = strings.clone_to_cstring(os.short_stem(event.path))
+                                rename_meta(event.path)
+                                break
+                            }
+                        }
+                    case ".wav":
+                        for i in 0..<len(full_assets_list.audio) {
+                            if full_assets_list.audio[i] == old_name {
+                                delete(full_assets_list.audio[i])
+                                full_assets_list.audio[i] = strings.clone(event.path)
+                                rename_meta(event.path)
+                                break
+                            }
+                        }
+                    case ".odin":
+                        for i in 0..<len(full_assets_list.scripts) {
+                            script := &full_assets_list.scripts[i]
+                            if script.path == old_name {
+                                delete(script.path)
+                                delete(script.name)
+                                script.path = strings.clone(event.path)
+                                script.name = strings.clone_to_cstring(os.short_stem(event.path))
+                                break
+                            }
+                        }
+                    case ".ent":
+                        for i in 0..<len(full_assets_list.entities) {
+                            if full_assets_list.entities[i] == old_name {
+                                delete(full_assets_list.entities[i])
+                                full_assets_list.entities[i] = strings.clone(event.path)
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    renaming = true
+                    old_name = event.path
+                }
             }
-            //TODO: Handle file renames
         case .Modified:
-            fmt.println(event)   
+            if is_dir {
+                //Do nothing
+            } else {
+                ext := os.ext(event.path)
+                switch ext {
+                case ".odin":
+                    for i in 0..<len(full_assets_list.scripts) {
+                        script := &full_assets_list.scripts[i]
+                        if script.path == event.path {
+                            delete(script.name)
+                            delete(script.path)
+                            for func in script.func {
+                                delete(func.name)
+                                delete(func.signature)
+                            }
+                            delete(script.func)
+                            unordered_remove(&full_assets_list.scripts, i)
+                            list_add_script(event.path)
+                            break      
+                        }
+                    }
+                }
+            }
         }
     }
     if len(events) > 0 {
         rebuild_asset_list()
+    }
+}
+
+rename_meta :: proc(path: string) {
+    old_meta := fmt.tprintf("%s.meta", old_name)
+    new_meta := fmt.tprintf("%s.meta", path)
+    if os.exists(old_meta) {
+        os.rename(old_meta, new_meta)
     }
 }
 
