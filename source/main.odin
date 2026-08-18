@@ -4,6 +4,7 @@ import "core:mem"
 import "core:fmt"
 import "core:strings"
 import "core:os"
+import "base:runtime"
 import sdl "vendor:sdl3"
 import imgui "../../imgui"
 import "../../imgui/imgui_impl_sdl3"
@@ -19,14 +20,28 @@ MapEntity :: struct {
     position: Vector2,
 }
 
+AppState :: struct {
+	window:   ^sdl.Window,
+	renderer: ^sdl.Renderer,
+}
+
 exit := false
 pause: bool
 renaming: bool
 old_name: string
+poll_timer :f32= 0.0
+performance_freq: f32
+time_last: u64
+debug_allocator: mem.Tracking_Allocator
+io: ^imgui.IO
 
 main :: proc() {
+    sdl.EnterAppMainCallbacks(0, nil, app_init, app_iterate, app_event, app_quit)
+}
+
+app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.AppResult {
+    context = runtime.default_context()
     when ODIN_DEBUG {
-        debug_allocator: mem.Tracking_Allocator
         mem.tracking_allocator_init(&debug_allocator, context.allocator)
         context.allocator = mem.tracking_allocator(&debug_allocator)
         defer print_memory(debug_allocator)
@@ -35,29 +50,29 @@ main :: proc() {
     if !sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO) {
         panic("SDL3 init failed")
     }
-    defer sdl.Quit()
+    //defer sdl.Quit()
 
     window := sdl.CreateWindow("2d engine", WIN_WIDTH, WIN_HEIGHT,
         sdl.WINDOW_OPENGL | sdl.WINDOW_RESIZABLE)
     assert(window != nil)
-    defer sdl.DestroyWindow(window)
+    //defer sdl.DestroyWindow(window)
 
     audio_init()
-    defer audio_exit()
+    //defer audio_exit()
 
     render_init(window)
     texture_create_rt()
-    defer render_deinit()
+    //defer render_deinit()
     render_update_viewport(WIN_WIDTH, WIN_HEIGHT)
 
     input_init(window)    
     ui_init(window)
-    defer ui_cleanup()
+    //defer ui_cleanup()
 
     imgui.CHECKVERSION()
 	imgui.CreateContext()
-	defer imgui.DestroyContext()
-	io := imgui.GetIO()
+	//defer imgui.DestroyContext()
+	io = imgui.GetIO()
 	io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad, .DockingEnable, .ViewportsEnable}
 
 	imgui.StyleColorsDark()
@@ -77,7 +92,7 @@ main :: proc() {
 	}
 
 	imgui_impl_sdl3.InitForSDLGPU(window)
-	defer imgui_impl_sdl3.Shutdown()
+	//defer imgui_impl_sdl3.Shutdown()
 
     init_info := imgui_impl_sdlgpu3.InitInfo {
 		Device               = get_gpu(),
@@ -87,11 +102,10 @@ main :: proc() {
 		PresentMode          = .VSYNC,
 	}
 	imgui_impl_sdlgpu3.Init(&init_info)
-	defer imgui_impl_sdlgpu3.Shutdown()
+	//defer imgui_impl_sdlgpu3.Shutdown()
 
-    performance_freq := cast(f32)sdl.GetPerformanceFrequency()
-    time_last := sdl.GetPerformanceCounter()
-    poll_timer :f32= 0.0
+    performance_freq = cast(f32)sdl.GetPerformanceFrequency()
+    time_last = sdl.GetPerformanceCounter()
 
     sprite := sprite_create(#load("../sprites/Audio.png"), {1, 1})
     entity := entity_create(.player, {0, 0})
@@ -100,36 +114,38 @@ main :: proc() {
     entity2 := entity_create(.player, {1.1, 1.1})
     entity2.sprite = sprite
     entity2.size = sprite.size / sprite.frames
+    return .CONTINUE
+}
 
-    for !exit {
-        time_start := sdl.GetPerformanceCounter()
-        time_delta := f32(time_start - time_last) / performance_freq
+app_iterate :: proc "c" (appstate: rawptr) -> sdl.AppResult {
+    context = runtime.default_context()
+    time_start := sdl.GetPerformanceCounter()
+    time_delta := f32(time_start - time_last) / performance_freq
 
-        handle_events()
-        //input_update(time_delta)
-        //ui_process()
+    //input_update(time_delta)
+    //ui_process()
 
-        ui_update()
-        render_all(io)
-        console_print()
+    ui_update()
+    render_all(io)
+    console_print()
 
-        poll_timer += time_delta
-        if poll_timer >= 0.5 {
-            poll_timer = 0.0
-            poll_files()
-        }
-
-        when ODIN_DEBUG {
-            if len(debug_allocator.bad_free_array) > 0 {
-                fmt.println(debug_allocator.bad_free_array)
-                panic("Bad free(s) detected.")
-            }
-        }
-
-        // Each frame, free all memory allocated by things such as tprint
-        free_all(context.temp_allocator)
-        time_last = time_start
+    poll_timer += time_delta
+    if poll_timer >= 0.5 {
+        poll_timer = 0.0
+        poll_files()
     }
+
+    when ODIN_DEBUG {
+        if len(debug_allocator.bad_free_array) > 0 {
+            fmt.println(debug_allocator.bad_free_array)
+            panic("Bad free(s) detected.")
+        }
+    }
+
+    // Each frame, free all memory allocated by things such as tprint
+    free_all(context.temp_allocator)
+    time_last = time_start
+    return .CONTINUE
 }
 
 console_print :: proc() {
@@ -304,18 +320,18 @@ rename_meta :: proc(path: string) {
     }
 }
 
-handle_events :: proc() {
+//handle_events :: proc() {
+app_event :: proc "c" (appstate: rawptr, event: ^sdl.Event) -> sdl.AppResult {
+    context = runtime.default_context()
     input_reset()
-    event: sdl.Event
-    for sdl.PollEvent(&event) {
-        imgui_impl_sdl3.ProcessEvent(&event)
-        #partial switch event.type {
-        case sdl.EventType.WINDOW_CLOSE_REQUESTED:
-            exit = true
-        case sdl.EventType.WINDOW_RESIZED:
-            render_update_viewport(event.window.data1, event.window.data2)
-        }
+    imgui_impl_sdl3.ProcessEvent(event)
+    #partial switch event.type {
+    case sdl.EventType.WINDOW_CLOSE_REQUESTED:
+        return .SUCCESS
+    case sdl.EventType.WINDOW_RESIZED:
+        render_update_viewport(event.window.data1, event.window.data2)
     }
+    return .CONTINUE
 }
 
 print_memory :: proc(debug_allocator: mem.Tracking_Allocator) {
@@ -332,4 +348,17 @@ player_init :: proc(self: ^Entity, pos: Vector2) {
         right = 1.2,
     }
     entity_verify(self)
+}
+
+app_quit :: proc "c" (appstate: rawptr, result: sdl.AppResult) {
+	context = runtime.default_context()
+	
+	if appstate != nil {
+		state := cast(^AppState)appstate
+		if state.renderer != nil do sdl.DestroyRenderer(state.renderer)
+		if state.window != nil   do sdl.DestroyWindow(state.window)
+		free(state)
+	}
+
+	sdl.Quit()
 }
