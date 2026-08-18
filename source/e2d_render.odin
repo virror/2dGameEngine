@@ -19,11 +19,13 @@ QUAD_SIZE :: 16
 VIRTUAL_HEIGHT :: 480.0
 COLOR_WHITE :Vector4: {1, 1, 1, 1}
 
+@(private="file")
 Shader_type :: enum {
     game_shader,
     ui_shader,
 }
 
+@(private="file")
 Ui_frag_uniform :: struct {
     coordScale: Vector2,
     coordOffset: Vector2,
@@ -33,6 +35,7 @@ Ui_frag_uniform :: struct {
     tex_size: Vector2,
 }
 
+@(private="file")
 Ui_vert_uniform :: struct #packed {
     model: matrix[4, 4]f32,
     resolution: Vector2,
@@ -40,16 +43,19 @@ Ui_vert_uniform :: struct #packed {
     flip: Vector2,
 }
 
+@(private="file")
 Light_frag_uniform :: struct {
     diffuse: f32,
     ambient: f32,
 }
 
+@(private="file")
 Vertex_Data :: struct {
     pos: Vector2,
     tex: Vector2,
 }
 
+@(private="file")
 Render_data :: struct {
     texture: u32,
     position: Vector2,
@@ -62,24 +68,25 @@ Render_data :: struct {
     tex_size: Vector2,
 }
 
+Render :: struct {
+    gpu: ^sdl.GPUDevice,
+    win: ^sdl.Window,
+    vertex_buf: ^sdl.GPUBuffer,
+    index_buf: ^sdl.GPUBuffer,
+    cmd_buf: ^sdl.GPUCommandBuffer,
+    render_pass: ^sdl.GPURenderPass,
+}
+
 @(private="file")
 active_shader: Shader_type
 @(private="file")
 camera_position: Vector2
 resolution: Vector2 = {WIN_WIDTH, WIN_HEIGHT}
 @(private="file")
-gpu: ^sdl.GPUDevice
-@(private="file")
-win: ^sdl.Window
-@(private="file")
 pipeline_ui: ^sdl.GPUGraphicsPipeline
 @(private="file")
 pipeline_game: ^sdl.GPUGraphicsPipeline
-
-@(private="file")
-vertex_buf: ^sdl.GPUBuffer
-@(private="file")
-index_buf: ^sdl.GPUBuffer
+renderer: Render
 
 when EDITOR {
     textures: [dynamic]sdl.GPUTextureSamplerBinding
@@ -89,10 +96,6 @@ when EDITOR {
 
 @(private="file")
 texture_id: u32
-@(private="file")
-cmd_buf: ^sdl.GPUCommandBuffer
-@(private="file")
-render_pass: ^sdl.GPURenderPass
 @(private="file")
 light_frag_uniform: Light_frag_uniform
 @(private="file")
@@ -110,11 +113,11 @@ render_init :: proc(window: ^sdl.Window) {
         log.debugf("SDL {} [{}] {}", category, priority, message)
     }, nil)
 
-    gpu = sdl.CreateGPUDevice({.SPIRV, .METALLIB}, false, nil)
-    if !sdl.ClaimWindowForGPUDevice(gpu, window) {
+    renderer.gpu = sdl.CreateGPUDevice({.SPIRV, .METALLIB}, false, nil)
+    if !sdl.ClaimWindowForGPUDevice(renderer.gpu, window) {
         panic("GPU failed to claim window")
     }
-    win = window
+    renderer.win = window
 
     create_quad()
 
@@ -140,7 +143,7 @@ render_init :: proc(window: ^sdl.Window) {
 }
 
 get_gpu :: proc() -> ^sdl.GPUDevice {
-    return gpu
+    return renderer.gpu
 }
 
 @(private="file")
@@ -160,7 +163,7 @@ pipeline_create :: proc(vert_shader: ^sdl.GPUShader, frag_shader: ^sdl.GPUShader
         },
     }
 
-    pipeline := sdl.CreateGPUGraphicsPipeline(gpu, {
+    pipeline := sdl.CreateGPUGraphicsPipeline(renderer.gpu, {
         vertex_shader = vert_shader,
         fragment_shader = frag_shader,
         primitive_type = .TRIANGLELIST,
@@ -176,7 +179,7 @@ pipeline_create :: proc(vert_shader: ^sdl.GPUShader, frag_shader: ^sdl.GPUShader
         target_info = {
             num_color_targets = 1,
             color_target_descriptions = &(sdl.GPUColorTargetDescription {
-                format = sdl.GetGPUSwapchainTextureFormat(gpu, win),
+                format = sdl.GetGPUSwapchainTextureFormat(renderer.gpu, renderer.win),
                 blend_state = {
                     src_color_blendfactor = .SRC_ALPHA,
                     dst_color_blendfactor = .ONE_MINUS_SRC_ALPHA,
@@ -189,18 +192,18 @@ pipeline_create :: proc(vert_shader: ^sdl.GPUShader, frag_shader: ^sdl.GPUShader
             }),
         },
     })
-    sdl.ReleaseGPUShader(gpu, vert_shader)
-    sdl.ReleaseGPUShader(gpu, frag_shader)
+    sdl.ReleaseGPUShader(renderer.gpu, vert_shader)
+    sdl.ReleaseGPUShader(renderer.gpu, frag_shader)
     return pipeline
 }
 
 render_deinit :: proc() {
-    sdl.ReleaseGPUBuffer(gpu, vertex_buf)
-    sdl.ReleaseGPUBuffer(gpu, index_buf)
-    sdl.ReleaseGPUGraphicsPipeline(gpu, pipeline_ui)
-    sdl.ReleaseGPUGraphicsPipeline(gpu, pipeline_game)
-    sdl.ReleaseWindowFromGPUDevice(gpu, win)
-    sdl.DestroyGPUDevice(gpu)
+    sdl.ReleaseGPUBuffer(renderer.gpu, renderer.vertex_buf)
+    sdl.ReleaseGPUBuffer(renderer.gpu, renderer.index_buf)
+    sdl.ReleaseGPUGraphicsPipeline(renderer.gpu, pipeline_ui)
+    sdl.ReleaseGPUGraphicsPipeline(renderer.gpu, pipeline_game)
+    sdl.ReleaseWindowFromGPUDevice(renderer.gpu, renderer.win)
+    sdl.DestroyGPUDevice(renderer.gpu)
     log.destroy_console_logger(context.logger)
 }
 
@@ -208,9 +211,9 @@ render_set_shader :: proc(shader: Shader_type) {
     active_shader = shader
     switch shader {
     case .ui_shader:
-        sdl.BindGPUGraphicsPipeline(render_pass, pipeline_ui)
+        sdl.BindGPUGraphicsPipeline(renderer.render_pass, pipeline_ui)
     case .game_shader:
-        sdl.BindGPUGraphicsPipeline(render_pass, pipeline_game)
+        sdl.BindGPUGraphicsPipeline(renderer.render_pass, pipeline_game)
     }
 }
 
@@ -237,38 +240,38 @@ create_quad :: proc() {
      }
 
     vert_size := u32(len(vertices) * size_of(vertices[0]))
-    vertex_buf = sdl.CreateGPUBuffer(gpu, {
+    renderer.vertex_buf = sdl.CreateGPUBuffer(renderer.gpu, {
         usage = {.VERTEX},
         size = vert_size,
     })
     index_size := u32(len(indices) * size_of(indices[0]))
-    index_buf = sdl.CreateGPUBuffer(gpu, {
+    renderer.index_buf = sdl.CreateGPUBuffer(renderer.gpu, {
         usage = {.INDEX},
         size = index_size,
     })
-    trans_buf := sdl.CreateGPUTransferBuffer(gpu, {
+    trans_buf := sdl.CreateGPUTransferBuffer(renderer.gpu, {
         usage = .UPLOAD,
         size = vert_size + index_size,
     })
-    trans_mem := transmute([^]byte)sdl.MapGPUTransferBuffer(gpu, trans_buf, false)
+    trans_mem := transmute([^]byte)sdl.MapGPUTransferBuffer(renderer.gpu, trans_buf, false)
     mem.copy(trans_mem, raw_data(vertices), int(vert_size))
     mem.copy(trans_mem[vert_size:], raw_data(indices), int(index_size))
-    sdl.UnmapGPUTransferBuffer(gpu, trans_buf)
-    copy_cmd_buf := sdl.AcquireGPUCommandBuffer(gpu)
+    sdl.UnmapGPUTransferBuffer(renderer.gpu, trans_buf)
+    copy_cmd_buf := sdl.AcquireGPUCommandBuffer(renderer.gpu)
     copy_pass := sdl.BeginGPUCopyPass(copy_cmd_buf)
-    sdl.UploadToGPUBuffer(copy_pass, {trans_buf, 0}, {vertex_buf, 0, vert_size}, false)
-    sdl.UploadToGPUBuffer(copy_pass, {trans_buf, vert_size}, {index_buf, 0, index_size}, false)
+    sdl.UploadToGPUBuffer(copy_pass, {trans_buf, 0}, {renderer.vertex_buf, 0, vert_size}, false)
+    sdl.UploadToGPUBuffer(copy_pass, {trans_buf, vert_size}, {renderer.index_buf, 0, index_size}, false)
     sdl.EndGPUCopyPass(copy_pass)
     if !sdl.SubmitGPUCommandBuffer(copy_cmd_buf) {
         panic("Cant submit GPU cmd buffer")
     }
-    sdl.ReleaseGPUTransferBuffer(gpu, trans_buf)
+    sdl.ReleaseGPUTransferBuffer(renderer.gpu, trans_buf)
 }
 
 @(private="file")
 shader_create :: proc(shader_data: []u8, stage: sdl.GPUShaderStage, buffers: u32,
                       samplers: u32, format: sdl.GPUShaderFormat, entrypoint: cstring = "main") -> ^sdl.GPUShader {
-    shader := sdl.CreateGPUShader(gpu, {
+    shader := sdl.CreateGPUShader(renderer.gpu, {
         code_size = len(shader_data),
         code = raw_data(shader_data),
         entrypoint = entrypoint,
@@ -301,7 +304,7 @@ texture_create2 :: proc(image: ^png.Image, err: png.Error) -> (u32, Vector2) {
 
     w := image.width
     h := image.height
-    gpu_texture := sdl.CreateGPUTexture(gpu, {
+    gpu_texture := sdl.CreateGPUTexture(renderer.gpu, {
         type = .D2,
         format = .R8G8B8A8_UNORM,
         usage = {.SAMPLER},
@@ -313,22 +316,22 @@ texture_create2 :: proc(image: ^png.Image, err: png.Error) -> (u32, Vector2) {
     when EDITOR {
         append(&textures, sdl.GPUTextureSamplerBinding {
             texture = gpu_texture,
-            sampler = sdl.CreateGPUSampler(gpu, {}),
+            sampler = sdl.CreateGPUSampler(renderer.gpu, {}),
         })
         texture_id = u32(len(textures)) - 1
     } else {
         textures[texture_id].texture = gpu_texture
-        textures[texture_id].sampler = sdl.CreateGPUSampler(gpu, {})
+        textures[texture_id].sampler = sdl.CreateGPUSampler(renderer.gpu, {})
     }
     tex_size := u32(w * h * 4)
-    trans_buf := sdl.CreateGPUTransferBuffer(gpu, {
+    trans_buf := sdl.CreateGPUTransferBuffer(renderer.gpu, {
         usage = .UPLOAD,
         size = tex_size,
     })
-    trans_mem := sdl.MapGPUTransferBuffer(gpu, trans_buf, false)
+    trans_mem := sdl.MapGPUTransferBuffer(renderer.gpu, trans_buf, false)
     mem.copy(trans_mem, &image.pixels.buf[0], int(tex_size))
-    sdl.UnmapGPUTransferBuffer(gpu, trans_buf)
-    copy_cmd_buf := sdl.AcquireGPUCommandBuffer(gpu)
+    sdl.UnmapGPUTransferBuffer(renderer.gpu, trans_buf)
+    copy_cmd_buf := sdl.AcquireGPUCommandBuffer(renderer.gpu)
     copy_pass := sdl.BeginGPUCopyPass(copy_cmd_buf)
     sdl.UploadToGPUTexture(copy_pass, {transfer_buffer = trans_buf},
         {
@@ -341,27 +344,27 @@ texture_create2 :: proc(image: ^png.Image, err: png.Error) -> (u32, Vector2) {
     if !sdl.SubmitGPUCommandBuffer(copy_cmd_buf) {
         panic("Cant submit GPU cmd buffer")
     }
-    sdl.ReleaseGPUTransferBuffer(gpu, trans_buf)
+    sdl.ReleaseGPUTransferBuffer(renderer.gpu, trans_buf)
     texture_id += 1
     return texture_id - 1, {f32(w), f32(h)}
 }
 
 texture_destroy :: proc(texture: u32) {
-    sdl.ReleaseGPUSampler(gpu, textures[texture].sampler)
-    sdl.ReleaseGPUTexture(gpu, textures[texture].texture)
+    sdl.ReleaseGPUSampler(renderer.gpu, textures[texture].sampler)
+    sdl.ReleaseGPUTexture(renderer.gpu, textures[texture].texture)
 }
 
 render_pre :: proc(color: Vector4) {
     draw_data := imgui.GetDrawData()
 	is_minimized := draw_data.DisplaySize.x == 0 || draw_data.DisplaySize.y == 0
-    cmd_buf = sdl.AcquireGPUCommandBuffer(gpu)
+    renderer.cmd_buf = sdl.AcquireGPUCommandBuffer(renderer.gpu)
     swap_text: ^sdl.GPUTexture
-    if !sdl.WaitAndAcquireGPUSwapchainTexture(cmd_buf, win, &swap_text, nil, nil) {
+    if !sdl.WaitAndAcquireGPUSwapchainTexture(renderer.cmd_buf, renderer.win, &swap_text, nil, nil) {
         panic("Failed to acquire swapchain texture")
     }
 
     if swap_text != nil && !is_minimized {
-        imgui_impl_sdlgpu3.PrepareDrawData(draw_data, cmd_buf)
+        imgui_impl_sdlgpu3.PrepareDrawData(draw_data, renderer.cmd_buf)
 
         color_info := sdl.GPUColorTargetInfo {
             texture = swap_text,
@@ -369,36 +372,36 @@ render_pre :: proc(color: Vector4) {
             clear_color = sdl.FColor(color),
             store_op = .STORE,
         }
-        render_pass = sdl.BeginGPURenderPass(cmd_buf, &color_info, 1, nil)
-        sdl.BindGPUVertexBuffers(render_pass, 0, &(sdl.GPUBufferBinding {buffer = vertex_buf}), 1)
-        sdl.BindGPUIndexBuffer(render_pass, {buffer = index_buf}, ._16BIT)
-        imgui_impl_sdlgpu3.RenderDrawData(draw_data, cmd_buf, render_pass, nil)
+        renderer.render_pass = sdl.BeginGPURenderPass(renderer.cmd_buf, &color_info, 1, nil)
+        sdl.BindGPUVertexBuffers(renderer.render_pass, 0, &(sdl.GPUBufferBinding {buffer = renderer.vertex_buf}), 1)
+        sdl.BindGPUIndexBuffer(renderer.render_pass, {buffer = renderer.index_buf}, ._16BIT)
+        imgui_impl_sdlgpu3.RenderDrawData(draw_data, renderer.cmd_buf, renderer.render_pass, nil)
     } else {
-        render_pass = nil
+        renderer.render_pass = nil
     }
 }
 
 render_quad :: proc(data: Render_data) {
-    if render_pass != nil {
+    if renderer.render_pass != nil {
         ui_frag_uniform :Ui_frag_uniform= {data.scale, data.offset, data.color, data.slice9, data.size, data.tex_size}
-        sdl.PushGPUFragmentUniformData(cmd_buf, 0, &ui_frag_uniform, size_of(ui_frag_uniform))
+        sdl.PushGPUFragmentUniformData(renderer.cmd_buf, 0, &ui_frag_uniform, size_of(ui_frag_uniform))
         if active_shader == .game_shader {
-            sdl.PushGPUFragmentUniformData(cmd_buf, 1, &light_frag_uniform, size_of(light_frag_uniform))
+            sdl.PushGPUFragmentUniformData(renderer.cmd_buf, 1, &light_frag_uniform, size_of(light_frag_uniform))
         }
 
         model_matrix := linalg.matrix4_scale_f32({data.size.x, data.size.y, 0})
         model_matrix = linalg.matrix4_translate_f32({data.position.x, data.position.y, 0}) * model_matrix
         ui_vert_uniform :Ui_vert_uniform= {model_matrix, resolution, camera_position, data.flip}
-        sdl.PushGPUVertexUniformData(cmd_buf, 0, &ui_vert_uniform, size_of(ui_vert_uniform))
+        sdl.PushGPUVertexUniformData(renderer.cmd_buf, 0, &ui_vert_uniform, size_of(ui_vert_uniform))
         
-        sdl.BindGPUFragmentSamplers(render_pass, 0, &textures[data.texture], 1)
-        sdl.DrawGPUIndexedPrimitives(render_pass, 6, 1, 0, 0, 0)
+        sdl.BindGPUFragmentSamplers(renderer.render_pass, 0, &textures[data.texture], 1)
+        sdl.DrawGPUIndexedPrimitives(renderer.render_pass, 6, 1, 0, 0, 0)
     }
 }
 
 render_post :: proc(io: ^imgui.IO) {
-    if (render_pass != nil) {
-        sdl.EndGPURenderPass(render_pass)
+    if (renderer.render_pass != nil) {
+        sdl.EndGPURenderPass(renderer.render_pass)
     }
 
     if .ViewportsEnable in io.ConfigFlags {
@@ -406,7 +409,7 @@ render_post :: proc(io: ^imgui.IO) {
         imgui.RenderPlatformWindowsDefault()
     }
 
-    if !sdl.SubmitGPUCommandBuffer(cmd_buf) {
+    if !sdl.SubmitGPUCommandBuffer(renderer.cmd_buf) {
         panic("Cant submit GPU cmd buffer")
     }
 }
@@ -503,5 +506,5 @@ sort_func :: proc(i: ^Entity, j: ^Entity) -> bool {
 }
 
 render_set_fullscreen :: proc(fullscreen: bool) {
-    sdl.SetWindowFullscreen(win, fullscreen)
+    sdl.SetWindowFullscreen(renderer.win, fullscreen)
 }

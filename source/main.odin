@@ -101,20 +101,7 @@ main :: proc() {
         //ui_process()
 
         ui_update()
-
-        // Render all
-        render_pre({0.298, 0.27, 0.259, 1.0})
-        render_set_shader(.game_shader)
-        for i in 0..<len(entities) {
-            if entities[i].type != .empty {
-                entity_render(&entities[i])
-            }
-        }
-
-        render_set_shader(.ui_shader)
-        ui_render()
-
-        render_post(io)
+        render_all(io)
         console_print()
 
         poll_timer += time_delta
@@ -132,7 +119,6 @@ main :: proc() {
 
         // Each frame, free all memory allocated by things such as tprint
         free_all(context.temp_allocator)
-
         time_last = time_start
     }
 }
