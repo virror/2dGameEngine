@@ -6,7 +6,7 @@ import "core:math/linalg"
 PLAYER_SPEED :: 3.75
 
 player_init :: proc(self: ^Entity, pos: Vector2) {
-    entity_init(self, .player, pos, 0)
+    entity_init(self, .player, pos, "player")
     self.update = player_update
     self.physics.collider = {
         bottom = 0,
