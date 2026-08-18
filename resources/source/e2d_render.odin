@@ -96,7 +96,7 @@ render_init :: proc(window: ^sdl.Window) {
     context.logger = log.create_console_logger()
     default_context = context
 
-    sdl.SetLogPriorities(.VERBOSE)
+    sdl.SetLogPriorities(.ERROR)
     sdl.SetLogOutputFunction(proc "c" (userdata: rawptr, category: sdl.LogCategory, priority: sdl.LogPriority, message: cstring) {
         context = default_context
         log.debugf("SDL {} [{}] {}", category, priority, message)

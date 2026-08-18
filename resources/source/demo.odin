@@ -19,7 +19,7 @@ player_init :: proc(self: ^Entity, pos: Vector2) {
     entity_anim_run(self, 0, true)
 }
 
-player_update :: proc(self: ^Entity, dt: f32) {
+player_update :: proc(self: ^Entity, delta_time: f32) {
     if key_down("left") {
         if self.velocity.x > -PLAYER_SPEED {
             self.velocity.x -= 1

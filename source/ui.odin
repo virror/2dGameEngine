@@ -1549,29 +1549,68 @@ build_assets :: proc() {
     }
     os.write_string(fd, "}\n\n")
 
-    os.write_string(fd, fmt.tprintf("sprite_map := map[string]int {{\n"))
+    os.write_string(fd, "sprite_map := map[string]int {\n")
     for key, value in sprite_map {
         os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
     }
-    os.write_string(fd, fmt.tprintf("}}\n"))
+    os.write_string(fd, "}\n")
 
-    os.write_string(fd, fmt.tprintf("tilemap_map := map[string]int {{\n"))
+    os.write_string(fd, "tilemap_map := map[string]int {\n")
     for key, value in tilemap_map {
         os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
     }
-    os.write_string(fd, fmt.tprintf("}}\n"))
+    os.write_string(fd, "}\n")
 
-    os.write_string(fd, fmt.tprintf("font_map := map[string]int {{\n"))
+    os.write_string(fd, "font_map := map[string]int {\n")
     for key, value in font_map {
         os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
     }
-    os.write_string(fd, fmt.tprintf("}}\n\n"))
+    os.write_string(fd, "}\n\n")
 
-    os.write_string(fd, fmt.tprintf("sound_map := map[string]int {{\n"))
+    os.write_string(fd, "sound_map := map[string]int {\n")
     for key, value in sound_map {
         os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
     }
-    os.write_string(fd, fmt.tprintf("}}\n\n"))
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "EntityType :: enum {\n\tempty,\n")
+    for entity in full_assets_list.entities {
+        name := os.short_stem(entity)
+        os.write_string(fd, fmt.tprintf("\t%s,\n", name))
+    }
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {\n\te: ^Entity\n")
+    os.write_string(fd, "\tif type != .empty {\n\t\t e = entity_spawn()\n\t}\n\tswitch type {\n\tcase .empty:\n\n")
+    for entity in full_assets_list.entities {
+        name := os.short_stem(entity)
+        os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\tplayer_init(e, pos)\n", name))        
+    }
+    os.write_string(fd, "\t}\n\treturn e\n}\n\n")
+
+    for entity in full_assets_list.entities {
+        name := os.short_stem(entity)
+        meta := meta_load_entity(entity)
+        os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", name))
+        os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, \"%s\")\n", name, meta.sprite))
+        if meta.update != "" {
+            os.write_string(fd, fmt.tprintf("\tself.update = %s\n", meta.update))
+        }
+        if meta.on_collide_entity != "" {
+            os.write_string(fd, fmt.tprintf("\tself.on_collide_entity = %s\n", meta.on_collide_entity))
+        }
+        if meta.on_collide_tile != "" {
+            os.write_string(fd, fmt.tprintf("\tself.on_collide_tile = %s\n", meta.on_collide_tile))
+        }
+        os.write_string(fd, "\tself.physics.collider = {\n\t\t")
+        os.write_string(fd, fmt.tprintf("bottom = %d,\n\t\ttop = %d,\n\t\tleft = %d,\n\t\tright = %d,\n\t}}\n", meta.collider.y, meta.collider.x, meta.collider.z, meta.collider.w))
+        os.write_string(fd, fmt.tprintf("\tself.physics.mass = %f\n", meta.mass))
+        os.write_string(fd, fmt.tprintf("\tself.physics.friction = %f\n", meta.friction))
+        os.write_string(fd, fmt.tprintf("\tself.physics.bounciness = %f\n", meta.bounciness))
+        os.write_string(fd, fmt.tprintf("\tself.physics.no_gravity = %t\n", meta.no_gravity))
+        os.write_string(fd, fmt.tprintf("\tself.physics.trigger = %t\n", meta.trigger))
+        os.write_string(fd, "\tentity_verify(self)\n}\n\n")
+    }
 
     os.write_string(fd, fmt.tprintf("TILEMAP_COUNT :: %d\n", tilemaps_count))
     os.write_string(fd, fmt.tprintf("SPRITE_COUNT :: %d\n", sprites_count))
