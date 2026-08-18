@@ -846,6 +846,7 @@ ui_show_top :: proc() {
         } else {
             if imgui.ImageButton("Run", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
                 if project_loaded {
+                    console_clear()
                     run_project()
                 }
             }
@@ -944,14 +945,10 @@ ui_show_bottom :: proc() {
                 set_console_focus = false
             }
             if imgui.BeginTabItem("Console", nil, flag) {
-                if imgui.BeginChild("ConsoleChild", imgui.Vec2{viewport.Size.x, 150}) {
-                    if imgui.SmallButton("Clear") {
-                        for text in console_output {
-                            delete(text)
-                        }
-                        delete(console_output)
-                        console_output = {}
-                    }
+                if imgui.SmallButton("Clear") {
+                    console_clear()
+                }
+                if imgui.BeginChild("ConsoleChild", imgui.Vec2{viewport.Size.x - 15, 140}) {
                     for i := 0; i < len(console_output); i += 1 {
                         imgui.Text(strings.clone_to_cstring(console_output[i], context.temp_allocator))
                     }
@@ -963,6 +960,14 @@ ui_show_bottom :: proc() {
         imgui.EndTabBar()
     }
     imgui.End()
+}
+
+console_clear :: proc() {
+    for text in console_output {
+        delete(text)
+    }
+    delete(console_output)
+    console_output = {}
 }
 
 ui_show_middle :: proc() {
