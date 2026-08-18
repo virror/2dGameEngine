@@ -1,5 +1,7 @@
 package main
 
+import "core:fmt"
+
 Vector2 :: distinct [2]f32
 Vector4 :: distinct [4]f32
 

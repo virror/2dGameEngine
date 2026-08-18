@@ -226,6 +226,7 @@ entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {
     case .empty:
         //Ignore
     case .player:
+        player_init(e, pos)
     }
     return e
 }

@@ -46,6 +46,7 @@ main :: proc() {
     defer audio_exit()
 
     render_init(window)
+    texture_create_rt()
     defer render_deinit()
     render_update_viewport(WIN_WIDTH, WIN_HEIGHT)
 
@@ -91,6 +92,14 @@ main :: proc() {
     performance_freq := cast(f32)sdl.GetPerformanceFrequency()
     time_last := sdl.GetPerformanceCounter()
     poll_timer :f32= 0.0
+
+    sprite := sprite_create(#load("../sprites/Audio.png"), {1, 1})
+    entity := entity_create(.player, {0, 0})
+    entity.sprite = sprite
+    entity.size = sprite.size / sprite.frames
+    entity2 := entity_create(.player, {1.1, 1.1})
+    entity2.sprite = sprite
+    entity2.size = sprite.size / sprite.frames
 
     for !exit {
         time_start := sdl.GetPerformanceCounter()
@@ -312,4 +321,15 @@ handle_events :: proc() {
 print_memory :: proc(debug_allocator: mem.Tracking_Allocator) {
     fmt.println(debug_allocator.allocation_map)
     fmt.println(debug_allocator.current_memory_allocated)
+}
+
+player_init :: proc(self: ^Entity, pos: Vector2) {
+    entity_init(self, .player, pos, 0)
+    self.physics.collider = {
+        bottom = 0,
+        top = 0.4,
+        left = 0.8,
+        right = 1.2,
+    }
+    entity_verify(self)
 }

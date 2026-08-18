@@ -185,7 +185,7 @@ pipeline_create :: proc(vert_shader: ^sdl.GPUShader, frag_shader: ^sdl.GPUShader
                     dst_color_blendfactor = .ONE_MINUS_SRC_ALPHA,
                     color_blend_op = .ADD,
                     src_alpha_blendfactor = .ONE,
-                    dst_alpha_blendfactor = .ZERO,
+                    dst_alpha_blendfactor = .ONE_MINUS_SRC_ALPHA,
                     alpha_blend_op = .ADD,
                     enable_blend = true,
                 },
@@ -223,6 +223,9 @@ render_set_light :: proc(diffuse: f32, ambient: f32) {
 
 render_update_viewport :: proc(width, height: i32) {
     resolution = {f32(width), f32(height)}
+    sdl.ReleaseGPUTexture(renderer.gpu, rt_texture.texture)
+    sdl.ReleaseGPUSampler(renderer.gpu, rt_texture.sampler)
+    texture_create_rt()
 }
 
 @(private="file")

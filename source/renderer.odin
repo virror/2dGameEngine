@@ -3,20 +3,19 @@ package main
 import sdl "vendor:sdl3"
 import imgui "../../imgui"
 import "../../imgui/imgui_impl_sdlgpu3"
+import fmt "core:fmt"
+
+rt_texture: sdl.GPUTextureSamplerBinding
 
 render_all :: proc(io: ^imgui.IO) {
     draw_data := imgui.GetDrawData()
 	is_minimized := draw_data.DisplaySize.x == 0 || draw_data.DisplaySize.y == 0
     renderer.cmd_buf = sdl.AcquireGPUCommandBuffer(renderer.gpu)
-    swap_text: ^sdl.GPUTexture
-    if !sdl.WaitAndAcquireGPUSwapchainTexture(renderer.cmd_buf, renderer.win, &swap_text, nil, nil) {
-        panic("Failed to acquire swapchain texture")
-    }
 
     //Render pass 1, entities and game UI
-    if swap_text != nil && !is_minimized {
+    if !is_minimized {
         color_info := sdl.GPUColorTargetInfo {
-            texture = swap_text,
+            texture = rt_texture.texture,
             load_op = .CLEAR,
             clear_color = sdl.FColor({0.298, 0.27, 0.259, 1.0}),
             store_op = .STORE,
@@ -43,6 +42,10 @@ render_all :: proc(io: ^imgui.IO) {
     }
 
     //Render pass 2, Dear IMGUI
+    swap_text: ^sdl.GPUTexture
+    if !sdl.WaitAndAcquireGPUSwapchainTexture(renderer.cmd_buf, renderer.win, &swap_text, nil, nil) {
+        panic("Failed to acquire swapchain texture")
+    }
     if swap_text != nil && !is_minimized {
         imgui_impl_sdlgpu3.PrepareDrawData(draw_data, renderer.cmd_buf)
 
@@ -72,4 +75,19 @@ render_all :: proc(io: ^imgui.IO) {
     if !sdl.SubmitGPUCommandBuffer(renderer.cmd_buf) {
         panic("Cant submit GPU cmd buffer")
     }
+}
+
+texture_create_rt :: proc() -> () {
+    gpu_texture := sdl.CreateGPUTexture(renderer.gpu, {
+        type = .D2,
+        format = .R8G8B8A8_UNORM,
+        usage = {.SAMPLER, .COLOR_TARGET},
+        width = u32(resolution.x),
+        height = u32(resolution.y),
+        layer_count_or_depth = 1,
+        num_levels = 1,
+    })
+
+    rt_texture.texture = gpu_texture
+    rt_texture.sampler = sdl.CreateGPUSampler(renderer.gpu, {})
 }

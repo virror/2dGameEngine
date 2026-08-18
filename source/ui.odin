@@ -291,6 +291,8 @@ ui_update :: proc() {
     ui_show_right()
     ui_show_top()
     ui_show_bottom()
+    ui_show_middle()
+
     if show_welcome {
         imgui.OpenPopup("Welcome")
         show_welcome = false
@@ -330,6 +332,7 @@ ui_show_left :: proc() {
     imgui.SetNextWindowPos(viewport.Pos, .Always, imgui.Vec2{0, 0})
     imgui.SetNextWindowSize(imgui.Vec2{300, viewport.Size.y - 210})
     if imgui.Begin("LeftPanel", nil, window_flags) {
+        imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Entities") {
@@ -380,6 +383,7 @@ ui_show_right :: proc() {
     imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{viewport.Size.x, 0}, .Always, imgui.Vec2{1, 0})
     imgui.SetNextWindowSize(imgui.Vec2{300, viewport.Size.y - 210})
     if imgui.Begin("RightPanel", nil, window_flags) {
+        imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Properties") {
@@ -900,10 +904,11 @@ ui_show_bottom :: proc() {
     imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{-300, viewport.Size.y - 210} + imgui.Vec2{300, 0}, .Always, imgui.Vec2{0, 0})
     imgui.SetNextWindowSize(imgui.Vec2{viewport.Size.x, 210})
     if imgui.Begin("BottomPanel", nil, window_flags) {
+        imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Assets") {
-                if imgui.BeginChild("AssetsChild", imgui.Vec2{285, 150}) {
+                if imgui.BeginChild("AssetsChild", imgui.Vec2{285, 160}) {
                     if project_loaded {
                         draw_folder_tree(&root_folder)
                     }
@@ -952,6 +957,26 @@ ui_show_bottom :: proc() {
                     }
                     imgui.EndChild()
                 }
+                imgui.EndTabItem()
+            }
+        }
+        imgui.EndTabBar()
+    }
+    imgui.End()
+}
+
+ui_show_middle :: proc() {
+    size := viewport.Size - imgui.Vec2{600, 270}
+    imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{300, 60}, .Always)
+    imgui.SetNextWindowSize(size)
+    if imgui.Begin("MiddlePanel", nil, window_flags) {
+        imgui.SetCursorPosY(5)
+        if imgui.BeginTabBar("EditorTabBar") {
+            imgui.SetNextItemWidth(90)
+            if imgui.BeginTabItem("Editor") {
+                ref: imgui.TextureRef
+                ref._TexID = (imgui.TextureID(uintptr(rt_texture.texture)))
+                imgui.Image(ref, size - imgui.Vec2{27, 50})
                 imgui.EndTabItem()
             }
         }
