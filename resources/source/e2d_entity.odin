@@ -78,9 +78,9 @@ actually_destroy_entity :: proc(entity: ^Entity) {
     entities[index] = {}
 }
 
-entity_init :: proc(entity: ^Entity, e_type: EntityType, pos: Vector2, sprite_id: i32) {
+entity_init :: proc(entity: ^Entity, e_type: EntityType, pos: Vector2, sprite_id: string) {
     // Derive size from sprite
-    sprite := sprites[sprite_id]
+    sprite := sprites[sprite_map[sprite_id]]
 
     entity^ = {
         sprite = sprite,

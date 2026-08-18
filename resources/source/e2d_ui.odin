@@ -216,7 +216,7 @@ ui_get_by_id :: proc(id: i32) -> ^Ui_element {
     return &ui[id]
 }
 
-ui_image :: proc(position: Vector2, size: Vector2, sprite: int,
+ui_image :: proc(position: Vector2, size: Vector2, sprite: string,
         anchor: Ui_Anchor, parent: ^Ui_element = nil) -> ^Ui_element {
     element := &ui[ui_index]
     ui_occupied[ui_index] = true
@@ -224,7 +224,7 @@ ui_image :: proc(position: Vector2, size: Vector2, sprite: int,
     element.size = size
     element.position = position
     element.color = COLOR_WHITE
-    element.sprite = sprites[sprite]
+    element.sprite = sprites[sprite_map[sprite]]
     element.anchor = anchor
     element.parent = parent
     return element
@@ -232,13 +232,13 @@ ui_image :: proc(position: Vector2, size: Vector2, sprite: int,
 
 ui_container :: proc(position: Vector2, anchor: Ui_Anchor, 
         parent: ^Ui_element = nil) -> ^Ui_element {
-    element := ui_image(position, {0, 0}, 38, anchor, parent)
+    element := ui_image(position, {0, 0}, "White", anchor, parent)
     return element
 }
 
 ui_text :: proc(position: Vector2, size: f32, text: string, 
         anchor: Ui_Anchor, parent: ^Ui_element = nil, font: int = 0) -> ^Ui_element {
-    element := ui_image(position, {size, fonts[font].ratio * size}, 0, anchor, parent)
+    element := ui_image(position, {size, fonts[font].ratio * size}, "White", anchor, parent)
     element.color = {0, 0, 0, 1}
     element.text = text
     element.no_block = true
@@ -253,7 +253,7 @@ ui_text :: proc(position: Vector2, size: f32, text: string,
 
 ui_button :: proc(position: Vector2, size: Vector2, on_click: proc(element: ^Ui_element),
         anchor: Ui_Anchor, parent: ^Ui_element = nil) -> ^Ui_element {
-    element := ui_image(position, size, 2, anchor)
+    element := ui_image(position, size, "Button", anchor)
     element.on_mouse_enter = button_enter
     element.on_mouse_leave = button_leave
     element.on_mouse_down = button_down
@@ -267,7 +267,7 @@ ui_button :: proc(position: Vector2, size: Vector2, on_click: proc(element: ^Ui_
 
 ui_input :: proc(position: Vector2, size: Vector2, anchor: Ui_Anchor, 
         parent: ^Ui_element = nil) -> ^Ui_element {
-    element := ui_image(position, size, 0, anchor)
+    element := ui_image(position, size, "White", anchor)
     element._input = ui_text({2, 0}, size.y - 10, "", .middle_left, element)
     element.parent = parent
     element.on_mouse_click = text_input_click
@@ -278,7 +278,7 @@ ui_input :: proc(position: Vector2, size: Vector2, anchor: Ui_Anchor,
 
 ui_checkbox :: proc(position: Vector2, size: f32, anchor: Ui_Anchor, 
         parent: ^Ui_element = nil) -> ^Ui_element {
-    element := ui_image(position, {size, size}, 2, anchor)
+    element := ui_image(position, {size, size}, "Button", anchor)
     element._input = ui_text({0, 2}, size, " ", .middle_left, element)
     element.parent = parent
     element.on_mouse_click = proc(element: ^Ui_element) {

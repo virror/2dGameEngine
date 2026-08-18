@@ -21,8 +21,9 @@ audio_exit :: proc() {
     mix.Quit()
 }
 
-audio_create_sound :: proc(path: cstring, decompress: bool) -> ^mix.Track {
-    audio := mix.LoadAudio(mixer, path, decompress)
+audio_create_sound :: proc(data: []u8, decompress: bool) -> ^mix.Track {
+    io := sdl.IOFromConstMem(raw_data(data), len(data))
+    audio := mix.LoadAudio_IO(mixer, io, decompress, true)
     track := mix.CreateTrack(mixer)
     assert(track != nil, "Couldn't create a mixer track")
     if !mix.SetTrackAudio(track, audio) {
@@ -31,17 +32,19 @@ audio_create_sound :: proc(path: cstring, decompress: bool) -> ^mix.Track {
     return track
 }
 
-audio_play_sound :: proc(idx: int, loop: bool) {
+audio_play_sound :: proc(name: string, loop: bool) {
     options := sdl.CreateProperties()
     if loop {
         sdl.SetNumberProperty(options, mix.PROP_PLAY_LOOPS_NUMBER, -1)
     }
+    idx := sound_map[name]
     if (!mix.PlayTrack(sounds[idx], options)) {
         panic("Couldn't play sound")
     }
 }
 
-audio_stop_sound :: proc(idx: int) {
+audio_stop_sound :: proc(name: string) {
+    idx := sound_map[name]
     if (!mix.StopTrack(sounds[idx], 0)) {
         panic("Couldn't stop sound")
     }
