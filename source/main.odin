@@ -20,11 +20,7 @@ MapEntity :: struct {
     position: Vector2,
 }
 
-AppState :: struct {
-	window:   ^sdl.Window,
-	renderer: ^sdl.Renderer,
-}
-
+window: ^sdl.Window
 exit := false
 pause: bool
 renaming: bool
@@ -44,34 +40,27 @@ app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.App
     when ODIN_DEBUG {
         mem.tracking_allocator_init(&debug_allocator, context.allocator)
         context.allocator = mem.tracking_allocator(&debug_allocator)
-        defer print_memory(debug_allocator)
     }
 
     if !sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO) {
         panic("SDL3 init failed")
     }
-    //defer sdl.Quit()
 
-    window := sdl.CreateWindow("2d engine", WIN_WIDTH, WIN_HEIGHT,
+    window = sdl.CreateWindow("2d engine", WIN_WIDTH, WIN_HEIGHT,
         sdl.WINDOW_OPENGL | sdl.WINDOW_RESIZABLE)
     assert(window != nil)
-    //defer sdl.DestroyWindow(window)
 
     audio_init()
-    //defer audio_exit()
 
     render_init(window)
     texture_create_rt()
-    //defer render_deinit()
     render_update_viewport(WIN_WIDTH, WIN_HEIGHT)
 
     input_init(window)    
     ui_init(window)
-    //defer ui_cleanup()
-
+    
     imgui.CHECKVERSION()
 	imgui.CreateContext()
-	//defer imgui.DestroyContext()
 	io = imgui.GetIO()
 	io.ConfigFlags += {.NavEnableKeyboard, .NavEnableGamepad, .DockingEnable, .ViewportsEnable}
 
@@ -92,8 +81,6 @@ app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.App
 	}
 
 	imgui_impl_sdl3.InitForSDLGPU(window)
-	//defer imgui_impl_sdl3.Shutdown()
-
     init_info := imgui_impl_sdlgpu3.InitInfo {
 		Device               = get_gpu(),
 		ColorTargetFormat    = sdl.GetGPUSwapchainTextureFormat(get_gpu(), window),
@@ -102,7 +89,6 @@ app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.App
 		PresentMode          = .VSYNC,
 	}
 	imgui_impl_sdlgpu3.Init(&init_info)
-	//defer imgui_impl_sdlgpu3.Shutdown()
 
     performance_freq = cast(f32)sdl.GetPerformanceFrequency()
     time_last = sdl.GetPerformanceCounter()
@@ -352,13 +338,15 @@ player_init :: proc(self: ^Entity, pos: Vector2) {
 
 app_quit :: proc "c" (appstate: rawptr, result: sdl.AppResult) {
 	context = runtime.default_context()
-	
-	if appstate != nil {
-		state := cast(^AppState)appstate
-		if state.renderer != nil do sdl.DestroyRenderer(state.renderer)
-		if state.window != nil   do sdl.DestroyWindow(state.window)
-		free(state)
-	}
-
+    imgui_impl_sdlgpu3.Shutdown()
+    imgui_impl_sdl3.Shutdown()
+    imgui.DestroyContext()
+    ui_cleanup()
+    render_deinit()
+    audio_exit()
+    sdl.DestroyWindow(window)
 	sdl.Quit()
+    when ODIN_DEBUG {
+        print_memory(debug_allocator)
+    }
 }
