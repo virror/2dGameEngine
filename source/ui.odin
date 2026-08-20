@@ -1679,10 +1679,11 @@ build_assets :: proc() {
         os.write_string(fd, fmt.tprintf("\tself.physics.bounciness = %f\n", meta.bounciness))
         os.write_string(fd, fmt.tprintf("\tself.physics.no_gravity = %t\n", meta.no_gravity))
         os.write_string(fd, fmt.tprintf("\tself.physics.trigger = %t\n", meta.trigger))
-        os.write_string(fd, "\tentity_verify(self)\n}\n")
+        os.write_string(fd, "\tentity_verify(self)\n")
         if meta.animate_on_start {
-            os.write_string(fd, "\tentity_anim_run(self, 0, true)\n\n")
+            os.write_string(fd, "\tentity_anim_run(self, 0, true)\n")
         }
+        os.write_string(fd, "}\n\n")
     }
 
     os.write_string(fd, fmt.tprintf("TILEMAP_COUNT :: %d\n", tilemaps_count))
