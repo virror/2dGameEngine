@@ -28,11 +28,8 @@ render_all :: proc(io: ^imgui.IO) {
     }
 
     render_set_shader(.game_shader)
-    for i in 0..<len(entities) {
-        if entities[i].type != "" {
-            entity_render(&entities[i])
-        }
-    }
+    tilemap_render()
+    render_sort_and_render()
 
     render_set_shader(.ui_shader)
     ui_render()

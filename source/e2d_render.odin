@@ -352,33 +352,6 @@ texture_destroy :: proc(texture: u32) {
     sdl.ReleaseGPUTexture(renderer.gpu, textures[texture].texture)
 }
 
-render_pre :: proc(color: Vector4) {
-    draw_data := imgui.GetDrawData()
-	is_minimized := draw_data.DisplaySize.x == 0 || draw_data.DisplaySize.y == 0
-    renderer.cmd_buf = sdl.AcquireGPUCommandBuffer(renderer.gpu)
-    swap_text: ^sdl.GPUTexture
-    if !sdl.WaitAndAcquireGPUSwapchainTexture(renderer.cmd_buf, renderer.win, &swap_text, nil, nil) {
-        panic("Failed to acquire swapchain texture")
-    }
-
-    if swap_text != nil && !is_minimized {
-        imgui_impl_sdlgpu3.PrepareDrawData(draw_data, renderer.cmd_buf)
-
-        color_info := sdl.GPUColorTargetInfo {
-            texture = swap_text,
-            load_op = .CLEAR,
-            clear_color = sdl.FColor(color),
-            store_op = .STORE,
-        }
-        renderer.render_pass = sdl.BeginGPURenderPass(renderer.cmd_buf, &color_info, 1, nil)
-        sdl.BindGPUVertexBuffers(renderer.render_pass, 0, &(sdl.GPUBufferBinding {buffer = renderer.vertex_buf}), 1)
-        sdl.BindGPUIndexBuffer(renderer.render_pass, {buffer = renderer.index_buf}, ._16BIT)
-        imgui_impl_sdlgpu3.RenderDrawData(draw_data, renderer.cmd_buf, renderer.render_pass, nil)
-    } else {
-        renderer.render_pass = nil
-    }
-}
-
 render_quad :: proc(data: Render_data) {
     if renderer.render_pass != nil {
         ui_frag_uniform :Ui_frag_uniform= {data.scale, data.offset, data.color, data.slice9, data.size, data.tex_size}
@@ -394,21 +367,6 @@ render_quad :: proc(data: Render_data) {
         
         sdl.BindGPUFragmentSamplers(renderer.render_pass, 0, &textures[data.texture], 1)
         sdl.DrawGPUIndexedPrimitives(renderer.render_pass, 6, 1, 0, 0, 0)
-    }
-}
-
-render_post :: proc(io: ^imgui.IO) {
-    if (renderer.render_pass != nil) {
-        sdl.EndGPURenderPass(renderer.render_pass)
-    }
-
-    if .ViewportsEnable in io.ConfigFlags {
-        imgui.UpdatePlatformWindows()
-        imgui.RenderPlatformWindowsDefault()
-    }
-
-    if !sdl.SubmitGPUCommandBuffer(renderer.cmd_buf) {
-        panic("Cant submit GPU cmd buffer")
     }
 }
 
@@ -447,30 +405,6 @@ render_text :: proc(font: Sprite, text: string, position: Vector2,
         },)
         new_pos.x += real_size.x
     }
-}
-
-debug_text :: proc(text: string, row, column: int, size: Vector2 = {0, 0},
-      color: Vector4 = COLOR_WHITE) {
-    font := sprites[1] // TODO: Don't use a sprite from arbitrary position in UI array
-    real_size := font.size / font.frames
-    if linalg.vector_length(size) != 0 {
-        real_size = size
-    }
-
-    position: Vector2
-    if row < 0 {
-        position.y += VIRTUAL_HEIGHT + real_size.y
-    }
-    if column < 0 {
-        position.x += resolution.x / (resolution.y / VIRTUAL_HEIGHT) + real_size.x
-    }
-    position += Vector2{f32(column - 1), f32(row - 1)} * real_size
-
-    old_cam := render_get_camera()
-    pos_scale := resolution.y / VIRTUAL_HEIGHT
-    render_set_camera((resolution.x / 2) / pos_scale, (resolution.y / 2) / pos_scale)
-    render_text(font, text, position, size, color)
-    render_set_camera(old_cam.x, old_cam.y)
 }
 
 render_set_camera :: proc(x: f32 = camera_position.x, y: f32 = camera_position.y) {
