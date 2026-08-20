@@ -87,12 +87,7 @@ pipeline_ui: ^sdl.GPUGraphicsPipeline
 @(private="file")
 pipeline_game: ^sdl.GPUGraphicsPipeline
 renderer: Render
-
-when EDITOR {
-    textures: [dynamic]sdl.GPUTextureSamplerBinding
-} else {
-    textures: [SPRITE_COUNT + TILEMAP_COUNT + FONT_COUNT]sdl.GPUTextureSamplerBinding
-}
+textures: [dynamic]sdl.GPUTextureSamplerBinding
 
 @(private="file")
 texture_id: u32
@@ -497,7 +492,7 @@ render_sort_and_render :: proc() {
     slice.sort_by(tmp_slice, sort_func)
 
     for e, i in render_list {
-        if render_list[i].type != .empty {
+        if render_list[i].type != "" {
             entity_render(e)
         }
     }

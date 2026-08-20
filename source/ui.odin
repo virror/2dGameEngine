@@ -1041,6 +1041,7 @@ ui_show_middle :: proc() {
                 imgui.Image(ref, size - imgui.Vec2{27, 50})
                 if imgui.IsItemClicked(.Left) {
                     fmt.println(imgui.GetMousePos())
+                    create_entity("player", {0, 0})
                 }
                 imgui.EndTabItem()
             }
@@ -1726,4 +1727,17 @@ remove_asset :: proc(path: string, ext: string) {
             break
         }
     }
+}
+
+sprite: Sprite
+create_entity :: proc(type: string, pos: Vector2) {
+    sprite = sprite_create(#load("../sprites/Audio.png"), {1, 1})
+    
+    entity: ^Entity
+    entity = entity_spawn()
+    entity.sprite = sprite
+    entity.size = sprite.size / sprite.frames
+    entity.physics.collision_mask = 0xFFFFFFFF
+    entity.position = pos
+    entity.type = type
 }

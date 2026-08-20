@@ -10,13 +10,14 @@ import imgui "../../imgui"
 import "../../imgui/imgui_impl_sdl3"
 import "../../imgui/imgui_impl_sdlgpu3"
 import fsw "../../odin-fsw"
+import mix "vendor:sdl3/mixer"
 
 ODIN_DEBUG :: true
 EDITOR :: true
 VERSION :: "0.1"
 
 MapEntity :: struct {
-    type: EntityType,
+    type: string,
     position: Vector2,
 }
 
@@ -30,6 +31,7 @@ performance_freq: f32
 time_last: u64
 debug_allocator: mem.Tracking_Allocator
 io: ^imgui.IO
+mixer: ^mix.Mixer
 
 main :: proc() {
     sdl.EnterAppMainCallbacks(0, nil, app_init, app_iterate, app_event, app_quit)
@@ -42,7 +44,7 @@ app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.App
         context.allocator = mem.tracking_allocator(&debug_allocator)
     }
 
-    if !sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO) {
+    if !sdl.Init(sdl.INIT_VIDEO | sdl.INIT_AUDIO) {
         panic("SDL3 init failed")
     }
 
@@ -92,14 +94,6 @@ app_init :: proc "c" (appstate: ^rawptr, argc: i32, argv: [^]cstring) -> sdl.App
 
     performance_freq = cast(f32)sdl.GetPerformanceFrequency()
     time_last = sdl.GetPerformanceCounter()
-
-    sprite := sprite_create(#load("../sprites/Audio.png"), {1, 1})
-    entity := entity_create(.player, {0, 0})
-    entity.sprite = sprite
-    entity.size = sprite.size / sprite.frames
-    entity2 := entity_create(.player, {1.1, 1.1})
-    entity2.sprite = sprite
-    entity2.size = sprite.size / sprite.frames
     return .CONTINUE
 }
 
@@ -325,15 +319,18 @@ print_memory :: proc(debug_allocator: mem.Tracking_Allocator) {
     fmt.println(debug_allocator.current_memory_allocated)
 }
 
-player_init :: proc(self: ^Entity, pos: Vector2) {
-    entity_init(self, .player, pos, 0)
-    self.physics.collider = {
-        bottom = 0,
-        top = 0.4,
-        left = 0.8,
-        right = 1.2,
+audio_init :: proc() {
+    if !mix.Init() {
+        panic("SDL3 mixer init failed")
     }
-    entity_verify(self)
+    mixer = mix.CreateMixerDevice(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, nil)
+    if mixer == nil {
+        panic("SDL3 mixer device creation failed")
+    }
+}
+
+audio_exit :: proc() {
+    mix.Quit()
 }
 
 app_quit :: proc "c" (appstate: rawptr, result: sdl.AppResult) {

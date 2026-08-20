@@ -137,9 +137,8 @@ tilemap_load_map :: proc(path: string, map_array: ^[TILE_ROWS][TILE_COLS]u16) {
     os.read(file, tmp2[:])
     map_ents := (cast(^[ENTITY_COUNT]MapEntity)&tmp2[0])^
     for e in map_ents {
-        type := EntityType(int(e.type))
-        if type != .empty {
-            entity_create(type, e.position)
+        if e.type != "" {
+            create_entity(e.type, e.position)
         }
     }
     os.close(file)

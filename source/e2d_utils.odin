@@ -29,3 +29,20 @@ is_inside_screen :: proc(pos: Vector2, size: Vector2) -> bool {
 get_screen_size :: proc() -> (Vector2) {
     return {resolution.x / QUAD_SIZE, resolution.y / QUAD_SIZE}
 }
+
+@(private="file")
+rect_offset_vec2 :: proc(rect: Rect, offset: Vector2) -> Rect {
+    return rect_offset_xy(rect, offset.x, offset.y)
+}
+
+@(private="file")
+rect_offset_xy :: proc(rect: Rect, x: f32 = 0, y: f32 = 0) -> Rect {
+    return {
+        top = rect.top + y,
+        right = rect.right + x,
+        bottom = rect.bottom + y,
+        left = rect.left + x,
+    }
+}
+
+rect_offset :: proc{rect_offset_vec2, rect_offset_xy}

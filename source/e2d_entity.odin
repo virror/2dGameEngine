@@ -8,17 +8,12 @@ SPRITE_COUNT :: 10
 ENTITY_COUNT :: 150
 ANIMATION_FRAME_TIME :: 0.125
 
-EntityType :: enum {
-    empty,
-    player,
-}
-
 EntityTag :: enum {
     none,
 }
 
 Entity :: struct {
-    type: EntityType,
+    type: string,
     tag: EntityTag,
     sprite: Sprite,
     position: Vector2,
@@ -42,6 +37,13 @@ Animation :: struct {
     clip: f32,
 }
 
+Rect :: struct {
+    bottom: f32,
+    top: f32,
+    left: f32,
+    right: f32,
+}
+
 Physics :: struct {
     collider: Rect,
     mass: f32,
@@ -61,7 +63,7 @@ entity_spawn :: proc() -> ^Entity {
     entity: ^Entity
     // NOTE: Linear search, not ideal
     for &e, i in entities {
-        if e.type == .empty {
+        if e.type == "" {
             entity = &entities[i]
             break
         }
@@ -78,19 +80,6 @@ entity_destroy :: proc(entity: ^Entity) {
 actually_destroy_entity :: proc(entity: ^Entity) {
     index := mem.ptr_sub(entity, &entities[0])
     entities[index] = {}
-}
-
-entity_init :: proc(entity: ^Entity, e_type: EntityType, pos: Vector2, sprite_id: i32) {
-    // Derive size from sprite
-    sprite := sprites[sprite_id]
-    entity.physics.collision_mask = 0xFFFFFFFF
-
-    entity^ = {
-        sprite = sprite,
-        size = sprite.size / sprite.frames,
-        position = pos,
-        type = e_type,
-    }
 }
 
 entity_animate :: proc(entity: ^Entity, time_delta: f32) {
@@ -121,50 +110,6 @@ entity_hitbox :: proc(entity: ^Entity) -> Rect {
     return rect_offset(entity.physics.collider, entity.position)
 }
 
-entity_collide_point :: proc(point: Vector2) -> ^Entity {
-    for &e in entities {
-        if e.type != .empty {
-            rect := entity_hitbox(&e)
-            if point.x > rect.left && point.x < rect.right &&
-               point.y > rect.bottom && point.y < rect.top {
-                return &e
-            }
-        }
-    }
-    return nil
-}
-
-entity_exists_point :: proc(point: Vector2) -> ^Entity {
-    for &e in entities {
-        if e.type != .empty {
-            size :Rect= {0, e.size.y / QUAD_SIZE, 0, e.size.x / QUAD_SIZE}
-            rect := rect_offset(size, e.position)
-            if point.x > rect.left && point.x < rect.right &&
-               point.y > rect.bottom && point.y < rect.top {
-                return &e
-            }
-        }
-    }
-    return nil
-}
-
-entity_overlap_tile :: proc(entity: ^Entity) -> bool {
-    rect := entity_hitbox(entity)
-    xs := int(rect.left)
-    xe := int(rect.right)
-    ys := int(rect.bottom)
-    ye := int(rect.top)
-
-    for y in ys..=ye {
-        for x in xs..=xe {
-            if !tilemap_get_tile(x, y).walkable {
-                return true
-            }
-        }
-    }
-    return false
-}
-
 entity_render :: proc(entity: ^Entity) {
     offset: Vector2
     
@@ -193,15 +138,6 @@ entity_render :: proc(entity: ^Entity) {
     }
 }
 
-entity_verify :: proc(entity: ^Entity) {
-    assert(entity.physics.collider.bottom < entity.physics.collider.top)
-    assert(entity.physics.collider.left < entity.physics.collider.right)
-
-    assert(entity.physics.friction >= 0)
-    assert(entity.physics.bounciness >= 0)
-    assert(entity.physics.bounciness <= 1)
-}
-
 entity_clear_all :: proc() {
     entities = {}
 }
@@ -215,20 +151,6 @@ entity_distance :: proc(entity1: ^Entity, entity2: ^Entity) -> (f32, Vector2) {
     center2 :Vector2 = entity_center(entity2)
     center_dir := center1 - center2
     return math.sqrt_f32(center_dir.x * center_dir.x + center_dir.y * center_dir.y), center_dir
-}
-
-entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {
-    e: ^Entity
-    if type != .empty {
-        e = entity_spawn()
-    }
-    switch type {
-    case .empty:
-        //Ignore
-    case .player:
-        player_init(e, pos)
-    }
-    return e
 }
 
 Sprite :: struct {

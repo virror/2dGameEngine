@@ -29,7 +29,7 @@ render_all :: proc(io: ^imgui.IO) {
 
     render_set_shader(.game_shader)
     for i in 0..<len(entities) {
-        if entities[i].type != .empty {
+        if entities[i].type != "" {
             entity_render(&entities[i])
         }
     }
