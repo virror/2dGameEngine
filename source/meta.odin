@@ -33,9 +33,14 @@ Entity_props :: struct {
     script_file1: cstring,
     script_file2: cstring,
     script_file3: cstring,
+    script_file4: cstring,
+    script_file5: cstring,
+    start: cstring,
     update: cstring,
     on_collide_entity: cstring,
     on_collide_tile: cstring,
+    destroy: cstring,
+    animate_on_start: bool,
 }
 
 meta_create_sprite :: proc(asset: string) {
@@ -174,9 +179,14 @@ meta_create_entity :: proc(path: string) {
         ini.write_pair(writer, "script_file1", "None")
         ini.write_pair(writer, "script_file2", "None")
         ini.write_pair(writer, "script_file3", "None")
+        ini.write_pair(writer, "script_file4", "None")
+        ini.write_pair(writer, "script_file5", "None")
+        ini.write_pair(writer, "start", "None")
         ini.write_pair(writer, "update", "None")
         ini.write_pair(writer, "on_collide_entity", "None")
         ini.write_pair(writer, "on_collide_tile", "None")
+        ini.write_pair(writer, "destroy", "None")
+        ini.write_pair(writer, "animate_on_start", false)
     }
 }
 
@@ -198,9 +208,14 @@ meta_save_entity :: proc(path: string, props: Entity_props) {
     ini.write_pair(writer, "script_file1", props.script_file1)
     ini.write_pair(writer, "script_file2", props.script_file2)
     ini.write_pair(writer, "script_file3", props.script_file3)
+    ini.write_pair(writer, "script_file4", props.script_file4)
+    ini.write_pair(writer, "script_file5", props.script_file5)
+    ini.write_pair(writer, "start", props.start)
     ini.write_pair(writer, "update", props.update)
     ini.write_pair(writer, "on_collide_entity", props.on_collide_entity)
     ini.write_pair(writer, "on_collide_tile", props.on_collide_tile)
+    ini.write_pair(writer, "destroy", props.destroy)
+    ini.write_pair(writer, "animate_on_start", props.animate_on_start)
 }
 
 meta_load_entity :: proc(path: string) -> Entity_props {
@@ -212,15 +227,25 @@ meta_load_entity :: proc(path: string) -> Entity_props {
     if err != nil {
         panic(fmt.tprintf("Failed to open entity %s.", path))
     }
-
+    //fmt.println("lm2")
+    //fmt.println(entity_props)
     delete(entity_props.sprite)
+    //fmt.println("lm2.1")
     delete(entity_props.script_file1)
+    //fmt.println("lm2.2")
     delete(entity_props.script_file2)
     delete(entity_props.script_file3)
+    delete(entity_props.script_file4)
+    delete(entity_props.script_file5)
+    //fmt.println("lm2.3")
+    delete(entity_props.start)
     delete(entity_props.update)
+    //fmt.println("lm2.4")
     delete(entity_props.on_collide_entity)
     delete(entity_props.on_collide_tile)
-
+    //fmt.println("lm2.5")
+    delete(entity_props.destroy)
+    //fmt.println("lm3")
     props: Entity_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
     props.sprite = strings.clone_to_cstring(ini_map[""]["sprite"])
@@ -230,14 +255,19 @@ meta_load_entity :: proc(path: string) -> Entity_props {
     props.bounciness, _ = strconv.parse_f32(ini_map[""]["bounciness"])
     props.trigger, _ = strconv.parse_bool(ini_map[""]["trigger"])
     props.no_gravity, _ = strconv.parse_bool(ini_map[""]["no_gravity"])
-
+    //fmt.println("lm4")
     props.script_file1 = strings.clone_to_cstring(ini_map[""]["script_file1"])
     props.script_file2 = strings.clone_to_cstring(ini_map[""]["script_file2"])
     props.script_file3 = strings.clone_to_cstring(ini_map[""]["script_file3"])
+    props.script_file4 = strings.clone_to_cstring(ini_map[""]["script_file4"])
+    props.script_file5 = strings.clone_to_cstring(ini_map[""]["script_file5"])
+    props.start = strings.clone_to_cstring(ini_map[""]["start"])
     props.update = strings.clone_to_cstring(ini_map[""]["update"])
     props.on_collide_entity = strings.clone_to_cstring(ini_map[""]["on_collide_entity"])
     props.on_collide_tile = strings.clone_to_cstring(ini_map[""]["on_collide_tile"])
-
+    props.destroy = strings.clone_to_cstring(ini_map[""]["destroy"])
+    props.animate_on_start, _ = strconv.parse_bool(ini_map[""]["animate_on_start"])
+    //fmt.println("lm5")
     for i := 0; i < len(full_assets_list.scripts); i += 1 {
         if props.script_file1 == full_assets_list.scripts[i].name {
             script_idx1 = i
@@ -247,6 +277,12 @@ meta_load_entity :: proc(path: string) -> Entity_props {
         }
         if props.script_file3 == full_assets_list.scripts[i].name {
             script_idx3 = i
+        }
+        if props.script_file4 == full_assets_list.scripts[i].name {
+            script_idx4 = i
+        }
+        if props.script_file5 == full_assets_list.scripts[i].name {
+            script_idx5 = i
         }
     }
     return props

@@ -7,11 +7,6 @@ import "core:math"
 ENTITY_COUNT :: 150
 ANIMATION_FRAME_TIME :: 0.125
 
-EntityType :: enum {
-    empty,
-    player,
-}
-
 EntityTag :: enum {
     none,
     player,
@@ -29,9 +24,11 @@ Entity :: struct {
     physics: Physics,
     background: bool,
     
+    start: proc(self: ^Entity),
     update: proc(self: ^Entity, dt: f32),
     on_collide_entity: proc(self: ^Entity, other: ^Entity),
     on_collide_tile: proc(self: ^Entity, collide_info: Vector2),
+    destroy: proc(self: ^Entity),
     marked_for_destruction: bool,
 }
 
@@ -74,6 +71,9 @@ entity_destroy :: proc(entity: ^Entity) {
 
 // For internal use. Not an API, hence the name.
 actually_destroy_entity :: proc(entity: ^Entity) {
+    if entity.destroy != nil {
+        entity.destroy(entity)
+    }
     index := mem.ptr_sub(entity, &entities[0])
     entities[index] = {}
 }
@@ -212,20 +212,6 @@ entity_distance :: proc(entity1: ^Entity, entity2: ^Entity) -> (f32, Vector2) {
     center2 :Vector2 = entity_center(entity2)
     center_dir := center1 - center2
     return math.sqrt_f32(center_dir.x * center_dir.x + center_dir.y * center_dir.y), center_dir
-}
-
-entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {
-    e: ^Entity
-    if type != .empty {
-        e = entity_spawn()
-    }
-    switch type {
-    case .empty:
-        //Ignore
-    case .player:
-        player_init(e, pos)
-    }
-    return e
 }
 
 Sprite :: struct {

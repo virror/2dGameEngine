@@ -227,9 +227,13 @@ ui_cleanup :: proc() {
     delete(entity_props.script_file1)
     delete(entity_props.script_file2)
     delete(entity_props.script_file3)
+    delete(entity_props.script_file4)
+    delete(entity_props.script_file5)
+    delete(entity_props.start)
     delete(entity_props.update)
     delete(entity_props.on_collide_entity)
     delete(entity_props.on_collide_tile)
+    delete(entity_props.destroy)
     mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
     mix.DestroyTrack(loaded_track)
 }
@@ -378,6 +382,8 @@ entity_type_pre :cstring
 script_idx1 :int = 0
 script_idx2 :int = 0
 script_idx3 :int = 0
+script_idx4 :int = 0
+script_idx5 :int = 0
 
 ui_show_right :: proc() {
     imgui.SetNextWindowPos(viewport.Pos + imgui.Vec2{viewport.Size.x, 0}, .Always, imgui.Vec2{1, 0})
@@ -532,7 +538,7 @@ ui_show_right :: proc() {
                         if entity_props.sprite != "" {
                             entity_type_pre = entity_props.sprite
                         } else {
-                            entity_type_pre = "None"
+                            entity_type_pre = strings.clone_to_cstring("None")
                         }
                         if imgui.BeginCombo("##Sprite", entity_type_pre) {
                             for i := 0; i < len(full_assets_list.textures); i += 1 {
@@ -570,6 +576,9 @@ ui_show_right :: proc() {
                                 show_edit_collider = true
                             }
                         }
+                        imgui.Text("Animate on start:")
+                        imgui.SetCursorPos(imgui.Vec2{135, imgui.GetCursorPos().y - 25})
+                        imgui.Checkbox("##AnimateOnStart", &entity_props.animate_on_start)
                         imgui.Spacing()
                         imgui.Text("Mass:")
                         imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
@@ -590,6 +599,27 @@ ui_show_right :: proc() {
                         imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
                         imgui.Checkbox("##No Gravity", &entity_props.no_gravity)
                         imgui.Spacing()
+                        imgui.Text("Start:")
+                        imgui.Text("(self: ^Entity)")
+                        ui_script_dropdown("##Start", &entity_props.script_file4, &script_idx4)
+                        if imgui.BeginCombo("##StartScript", entity_props.start) {
+                            if entity_props.script_file4 != "None" {
+                                for func in full_assets_list.scripts[script_idx4].func {
+                                    if !strings.contains(string(func.signature), "(self: ^Entity)") {
+                                       continue 
+                                    }
+                                    is_selected := entity_props.start == func.name
+                                    if imgui.Selectable(func.name, is_selected) {
+                                        delete(entity_props.start)
+                                        entity_props.start = strings.clone_to_cstring(string(func.name))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
                         imgui.Text("Update:")
                         imgui.Text("(self: ^Entity, delta_time: f32)")
                         ui_script_dropdown("##Update", &entity_props.script_file1, &script_idx1)
@@ -618,7 +648,7 @@ ui_show_right :: proc() {
                             if entity_props.script_file2 != "None" {
                                 for func in full_assets_list.scripts[script_idx2].func {
                                     if !strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
-                                       continue 
+                                       continue
                                     }
                                     is_selected := entity_props.on_collide_entity == func.name
                                     if imgui.Selectable(func.name, is_selected) {
@@ -645,6 +675,27 @@ ui_show_right :: proc() {
                                     if imgui.Selectable(func.name, is_selected) {
                                         delete(entity_props.on_collide_tile)
                                         entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
+                        imgui.Text("Destroy:")
+                        imgui.Text("(self: ^Entity)")
+                        ui_script_dropdown("##Destroy", &entity_props.script_file5, &script_idx5)
+                        if imgui.BeginCombo("##DestroyScript", entity_props.destroy) {
+                            if entity_props.script_file5 != "None" {
+                                for func in full_assets_list.scripts[script_idx5].func {
+                                    if !strings.contains(string(func.signature), "(self: ^Entity)") {
+                                       continue 
+                                    }
+                                    is_selected := entity_props.destroy == func.name
+                                    if imgui.Selectable(func.name, is_selected) {
+                                        delete(entity_props.destroy)
+                                        entity_props.destroy = strings.clone_to_cstring(string(func.name))
                                     }
                                     if is_selected {
                                         imgui.SetItemDefaultFocus()
@@ -783,6 +834,9 @@ ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
                 script_file^ = strings.clone_to_cstring(string(full_assets_list.scripts[i].name))
                 idx^ = i
                 switch id {
+                case "##Start":
+                    delete(entity_props.start)
+                    entity_props.start = strings.clone_to_cstring("None")
                 case "##Update":
                     delete(entity_props.update)
                     entity_props.update = strings.clone_to_cstring("None")
@@ -792,6 +846,9 @@ ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
                 case "##On Collide Tile":
                     delete(entity_props.on_collide_tile)
                     entity_props.on_collide_tile = strings.clone_to_cstring("None")
+                case "##Destroy":
+                    delete(entity_props.destroy)
+                    entity_props.destroy = strings.clone_to_cstring("None")
                 }
             }
             if is_selected {
@@ -982,6 +1039,9 @@ ui_show_middle :: proc() {
                 ref: imgui.TextureRef
                 ref._TexID = (imgui.TextureID(uintptr(rt_texture.texture)))
                 imgui.Image(ref, size - imgui.Vec2{27, 50})
+                if imgui.IsItemClicked(.Left) {
+                    fmt.println(imgui.GetMousePos())
+                }
                 imgui.EndTabItem()
             }
         }
@@ -1453,7 +1513,6 @@ build_asset_list :: proc(path: string) {
     }
     delete(assets_list)
     assets_list = {}
-    selected_asset = nil
 
     if !os.exists(path) {
         return
@@ -1500,7 +1559,7 @@ build_asset_list :: proc(path: string) {
             append(&assets_list, asset)
         }
     }
-    if len(assets_list) > 0 {
+    if len(assets_list) > 0 && selected_asset == nil {
         selected_asset = &assets_list[0]
     }   
 }
@@ -1589,32 +1648,41 @@ build_assets :: proc() {
     os.write_string(fd, "\tif type != .empty {\n\t\t e = entity_spawn()\n\t}\n\tswitch type {\n\tcase .empty:\n\n")
     for entity in full_assets_list.entities {
         name := os.short_stem(entity)
-        os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\tplayer_init(e, pos)\n", name))        
+        os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s_init(e, pos)\n", name, name))        
     }
-    os.write_string(fd, "\t}\n\treturn e\n}\n\n")
+    os.write_string(fd, "\t}\n\tif e.start != nil {\n\t\te.start(e)\n\t}\n\treturn e\n}\n\n")
 
     for entity in full_assets_list.entities {
         name := os.short_stem(entity)
         meta := meta_load_entity(entity)
         os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", name))
         os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, \"%s\")\n", name, meta.sprite))
-        if meta.update != "" {
+        if meta.update != "" && meta.update != "None" {
             os.write_string(fd, fmt.tprintf("\tself.update = %s\n", meta.update))
         }
-        if meta.on_collide_entity != "" {
+        if meta.on_collide_entity != "" && meta.on_collide_entity != "None" {
             os.write_string(fd, fmt.tprintf("\tself.on_collide_entity = %s\n", meta.on_collide_entity))
         }
-        if meta.on_collide_tile != "" {
+        if meta.on_collide_tile != "" && meta.on_collide_tile != "None" {
             os.write_string(fd, fmt.tprintf("\tself.on_collide_tile = %s\n", meta.on_collide_tile))
         }
+        if meta.start != "" && meta.start != "None" {
+            os.write_string(fd, fmt.tprintf("\tself.start = %s\n", meta.start))
+        }
+        if meta.destroy != "" && meta.destroy != "None" {
+            os.write_string(fd, fmt.tprintf("\tself.destroy = %s\n", meta.destroy))
+        }
         os.write_string(fd, "\tself.physics.collider = {\n\t\t")
-        os.write_string(fd, fmt.tprintf("bottom = %d,\n\t\ttop = %d,\n\t\tleft = %d,\n\t\tright = %d,\n\t}}\n", meta.collider.y, meta.collider.x, meta.collider.z, meta.collider.w))
+        os.write_string(fd, fmt.tprintf("bottom = %f,\n\t\ttop = %f,\n\t\tleft = %f,\n\t\tright = %f,\n\t}}\n", f32(meta.collider.x) / QUAD_SIZE, f32(meta.collider.y) / QUAD_SIZE, f32(meta.collider.z) / QUAD_SIZE, f32(meta.collider.w) / QUAD_SIZE))
         os.write_string(fd, fmt.tprintf("\tself.physics.mass = %f\n", meta.mass))
         os.write_string(fd, fmt.tprintf("\tself.physics.friction = %f\n", meta.friction))
         os.write_string(fd, fmt.tprintf("\tself.physics.bounciness = %f\n", meta.bounciness))
         os.write_string(fd, fmt.tprintf("\tself.physics.no_gravity = %t\n", meta.no_gravity))
         os.write_string(fd, fmt.tprintf("\tself.physics.trigger = %t\n", meta.trigger))
-        os.write_string(fd, "\tentity_verify(self)\n}\n\n")
+        os.write_string(fd, "\tentity_verify(self)\n}\n")
+        if meta.animate_on_start {
+            os.write_string(fd, "\tentity_anim_run(self, 0, true)\n\n")
+        }
     }
 
     os.write_string(fd, fmt.tprintf("TILEMAP_COUNT :: %d\n", tilemaps_count))

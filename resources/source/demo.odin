@@ -5,17 +5,8 @@ import "core:math/linalg"
 //Player
 PLAYER_SPEED :: 3.75
 
-player_init :: proc(self: ^Entity, pos: Vector2) {
-    entity_init(self, .player, pos, "player")
-    self.update = player_update
-    self.physics.collider = {
-        bottom = 0,
-        top = 0.4,
-        left = 0.8,
-        right = 1.2,
-    }
+player_start :: proc(self: ^Entity) {
     self.tag = .player
-    entity_verify(self)
     entity_anim_run(self, 0, true)
 }
 
