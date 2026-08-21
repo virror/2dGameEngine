@@ -46,6 +46,8 @@ Physics :: struct {
     bounciness: f32,
     trigger: bool,
     no_gravity: bool,
+    collision_layer : u32,
+    collision_mask : u32,
 }
 
 EntityId :: distinct u64

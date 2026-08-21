@@ -115,6 +115,12 @@ collide_entities :: proc() {
         if entities[i].type != .empty {
             for j in (i + 1)..<ENTITY_COUNT {
                 if entities[j].type != .empty {
+                    if (entities[i].physics.collision_layer & entities[j].physics.collision_mask) == 0 {
+                        continue
+                    }
+                    if (entities[j].physics.collision_layer & entities[i].physics.collision_mask) == 0 {
+                        continue
+                    }
                     if do_collide_entities(&entities[i], &entities[j]) {
                         if entities[i].on_collide_entity != nil {
                             entities[i]->on_collide_entity(&entities[j])
