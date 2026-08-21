@@ -218,7 +218,7 @@ meta_save_entity :: proc(path: string, props: Entity_props) {
     ini.write_pair(writer, "animate_on_start", props.animate_on_start)
 }
 
-meta_load_entity :: proc(path: string) -> Entity_props {
+meta_load_entity :: proc(path: string, delete_props: bool) -> Entity_props {
     if !os.exists(path) {
         panic(fmt.tprintf("Entity %s does not exist.", path))
     }
@@ -227,25 +227,19 @@ meta_load_entity :: proc(path: string) -> Entity_props {
     if err != nil {
         panic(fmt.tprintf("Failed to open entity %s.", path))
     }
-    //fmt.println("lm2")
-    //fmt.println(entity_props)
-    delete(entity_props.sprite)
-    //fmt.println("lm2.1")
-    delete(entity_props.script_file1)
-    //fmt.println("lm2.2")
-    delete(entity_props.script_file2)
-    delete(entity_props.script_file3)
-    delete(entity_props.script_file4)
-    delete(entity_props.script_file5)
-    //fmt.println("lm2.3")
-    delete(entity_props.start)
-    delete(entity_props.update)
-    //fmt.println("lm2.4")
-    delete(entity_props.on_collide_entity)
-    delete(entity_props.on_collide_tile)
-    //fmt.println("lm2.5")
-    delete(entity_props.destroy)
-    //fmt.println("lm3")
+    if delete_props {
+        delete(entity_props.sprite)
+        delete(entity_props.script_file1)
+        delete(entity_props.script_file2)
+        delete(entity_props.script_file3)
+        delete(entity_props.script_file4)
+        delete(entity_props.script_file5)
+        delete(entity_props.start)
+        delete(entity_props.update)
+        delete(entity_props.on_collide_entity)
+        delete(entity_props.on_collide_tile)
+        delete(entity_props.destroy)
+    }
     props: Entity_props
     ini_map, _, _ := ini.load_map_from_path(path, context.temp_allocator)
     props.sprite = strings.clone_to_cstring(ini_map[""]["sprite"])

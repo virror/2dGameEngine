@@ -161,8 +161,6 @@ ui_init :: proc(window_: ^sdl.Window) {
     odin_texture, _ = texture_create(#load("../sprites/Odin.png"))
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
-    recent_read()
-    project_name = fmt.caprintf("")
 }
 
 ui_cleanup :: proc() {
@@ -239,6 +237,10 @@ ui_cleanup :: proc() {
 }
 
 recent_read :: proc() {
+    for item in recent_list {
+        delete(item.path)
+        delete(item.date)
+    }
     fs, _ := os.open("recent.txt", os.O_RDONLY | os.O_CREATE)
     defer os.close(fs)
     data, _ := os.read_entire_file(fs, context.temp_allocator)
@@ -711,7 +713,7 @@ ui_show_right :: proc() {
                         }
                         imgui.SameLine(80, 0)
                         if imgui.Button("Revert") {
-                            entity_props = meta_load_entity(selected_asset.path)
+                            entity_props = meta_load_entity(selected_asset.path, true)
                         }
                     case .Script:
                     case .Unknown:
@@ -887,6 +889,7 @@ ui_show_top :: proc() {
         if imgui.ImageButton("Open", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0}, imgui.Vec2{0.333, 0.333}) {
             if project_loaded {
                 clean_project()
+                recent_read()
                 show_open_project = true
             }
         }
@@ -1078,7 +1081,8 @@ draw_folder_tree :: proc(node: ^Folder_node) {
         flags += {imgui.TreeNodeFlags.Selected}
     }
     is_open := imgui.TreeNodeEx(node.name, flags)
-    if imgui.IsItemClicked(.Left) || imgui.IsItemFocused() {
+    arrow_pressed := imgui.IsKeyPressed(imgui.Key.DownArrow) || imgui.IsKeyPressed(imgui.Key.UpArrow) || imgui.IsKeyPressed(imgui.Key.LeftArrow)
+    if imgui.IsItemClicked(.Left) || (imgui.IsItemFocused() && arrow_pressed) {
         if selected_node != nil {
             selected_node.selected = false
         }
@@ -1098,7 +1102,7 @@ draw_folder_tree :: proc(node: ^Folder_node) {
             case ".wav":
                 audio_props = meta_load_audio(assets_list[0].path, true)
             case ".ent":
-                entity_props = meta_load_entity(assets_list[0].path)
+                entity_props = meta_load_entity(assets_list[0].path, true)
             }
         }
     }
@@ -1127,7 +1131,7 @@ draw_asset_items :: proc() {
             case .Sound:
                 audio_props = meta_load_audio(assets_list[i].path, true)
             case .Entity:
-                entity_props = meta_load_entity(assets_list[i].path)
+                entity_props = meta_load_entity(assets_list[i].path, true)
             case .Script:
             case .Unknown:
                 //Do nothing atm
@@ -1170,6 +1174,7 @@ ui_show_welcome :: proc() {
         }
         imgui.SameLine(140, 0)
         if imgui.Button("Open Project") {
+            recent_read()
             show_open_project = true
             imgui.CloseCurrentPopup()
         }
@@ -1653,7 +1658,7 @@ build_assets :: proc() {
 
     for entity in full_assets_list.entities {
         name := os.short_stem(entity)
-        meta := meta_load_entity(entity)
+        meta := meta_load_entity(entity, false)
         os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", name))
         os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, .%s)\n", name, meta.sprite))
         if meta.update != "" && meta.update != "None" {
