@@ -1070,7 +1070,7 @@ get_folder_path :: proc(node: ^Folder_node) -> string {
 }
 
 draw_folder_tree :: proc(node: ^Folder_node) {
-    flags := imgui.TreeNodeFlags{.OpenOnArrow, .SpanLabelWidth}
+    flags := imgui.TreeNodeFlags{.OpenOnArrow, .SpanLabelWidth, .NavLeftJumpsToParent}
     if len(node.children) == 0 {
         flags += {imgui.TreeNodeFlags.Leaf}
     }
@@ -1078,7 +1078,7 @@ draw_folder_tree :: proc(node: ^Folder_node) {
         flags += {imgui.TreeNodeFlags.Selected}
     }
     is_open := imgui.TreeNodeEx(node.name, flags)
-    if imgui.IsItemClicked(.Left) {
+    if imgui.IsItemClicked(.Left) || imgui.IsItemFocused() {
         if selected_node != nil {
             selected_node.selected = false
         }
@@ -1118,7 +1118,7 @@ draw_asset_items :: proc() {
             continue
         }
         cursorPos := imgui.GetCursorPos()
-        if imgui.Selectable(fmt.ctprintf("##%s", assets_list[i].name), i == selected_asset_idx, nil, imgui.Vec2{85, 70}) {
+        if imgui.Selectable(fmt.ctprintf("##%s", assets_list[i].name), i == selected_asset_idx, {.SelectOnNav}, imgui.Vec2{85, 70}) {
             selected_asset_idx = i
             selected_asset = &assets_list[i]
             switch selected_asset.type {
