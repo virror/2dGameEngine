@@ -311,16 +311,12 @@ texture_create2 :: proc(image: ^png.Image, err: png.Error) -> (u32, Vector2) {
         layer_count_or_depth = 1,
         num_levels = 1,
     })
-    when EDITOR {
-        append(&textures, sdl.GPUTextureSamplerBinding {
-            texture = gpu_texture,
-            sampler = sdl.CreateGPUSampler(renderer.gpu, {}),
-        })
-        texture_id = u32(len(textures)) - 1
-    } else {
-        textures[texture_id].texture = gpu_texture
-        textures[texture_id].sampler = sdl.CreateGPUSampler(renderer.gpu, {})
-    }
+
+    append(&textures, sdl.GPUTextureSamplerBinding {
+        texture = gpu_texture,
+        sampler = sdl.CreateGPUSampler(renderer.gpu, {}),
+    })
+    texture_id = u32(len(textures)) - 1
     tex_size := u32(w * h * 4)
     trans_buf := sdl.CreateGPUTransferBuffer(renderer.gpu, {
         usage = .UPLOAD,

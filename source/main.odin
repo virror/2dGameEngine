@@ -13,7 +13,6 @@ import fsw "../../odin-fsw"
 import mix "vendor:sdl3/mixer"
 
 ODIN_DEBUG :: true
-EDITOR :: true
 VERSION :: "0.1"
 
 MapEntity :: struct {
