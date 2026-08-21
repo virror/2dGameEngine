@@ -154,6 +154,7 @@ stderr_args: ^os.File
 process: os.Process
 @(private="file")
 collider_editor: Collider_editor = {-1, Vector2{0, 0}, Vector2{0, 0}, 0, 0}
+sprite_map: map[string]Sprite
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -201,9 +202,9 @@ ui_cleanup :: proc() {
     for asset in full_assets_list.scripts {
         delete(asset.path)
         delete(asset.name)
-        for apa in asset.func {
-            delete(apa.name)
-            delete(apa.signature)
+        for func in asset.func {
+            delete(func.name)
+            delete(func.signature)
         }
         delete(asset.func)
     }
@@ -1043,8 +1044,9 @@ ui_show_middle :: proc() {
                 ref._TexID = (imgui.TextureID(uintptr(rt_texture.texture)))
                 imgui.Image(ref, size - imgui.Vec2{27, 50})
                 if imgui.IsItemClicked(.Left) {
-                    fmt.println(imgui.GetMousePos())
-                    create_entity("player", {0, 0})
+                    if selected_asset != nil && selected_asset.type == .Entity {
+                        create_entity(string(selected_asset.name), screen_to_position(imgui.GetMousePos()))
+                    }
                 }
                 imgui.EndTabItem()
             }
@@ -1731,14 +1733,37 @@ remove_asset :: proc(path: string, ext: string) {
     }
 }
 
-sprite: Sprite
+screen_to_position :: proc(screen_pos: imgui.Vec2) -> Vector2 {
+    size := viewport.Size - imgui.Vec2{600, 270}
+    pos := viewport.Pos + imgui.Vec2{300, 60}
+    final_pos := ((screen_pos - (pos + (size / 2))) / QUAD_SIZE)
+    return {final_pos.x, final_pos.y * -1}
+}
+
 create_entity :: proc(type: string, pos: Vector2) {
-    sprite = sprite_create(#load("../sprites/Audio.png"), {1, 1})
-    
+    entity_meta: Entity_props
+    for entity in full_assets_list.entities {
+        if os.base(entity) == type {
+            entity_meta = meta_load_entity(entity, false)
+            break
+        }
+    }
+    value, exists := sprite_map[type]
+    if !exists {
+        for sprite in full_assets_list.textures {
+            if sprite.name == entity_meta.sprite {
+                tex, size := texture_from_name(sprite.path)
+                sprite_meta := meta_load_sprite(sprite.path)
+                sprite_map[type] = {tex, size, {f32(sprite_meta.frames.x), f32(sprite_meta.frames.y)}, {0, 0}, {0, 0, 0, 0}, COLOR_WHITE}
+                value, _ = sprite_map[type]
+                break
+            }
+        }
+    }
     entity: ^Entity
     entity = entity_spawn()
-    entity.sprite = sprite
-    entity.size = sprite.size / sprite.frames
+    entity.sprite = value
+    entity.size = value.size / value.frames
     entity.physics.collision_mask = 0xFFFFFFFF
     entity.position = pos
     entity.type = type
