@@ -23,11 +23,7 @@ Entity :: struct {
     flip: Vector2,
     physics: Physics,
     background: bool,
-    
-    update: proc(self: ^Entity, dt: f32),
-    on_collide_entity: proc(self: ^Entity, other: ^Entity),
-    on_collide_tile: proc(self: ^Entity, collide_info: Vector2),
-    marked_for_destruction: bool,
+    id: string,
 }
 
 Animation :: struct {

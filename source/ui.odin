@@ -20,6 +20,7 @@ Asset_type :: enum {
     Entity,
     Sound,
     Script,
+    Placed_entity,
 }
 
 Texture_type :: enum {
@@ -155,6 +156,8 @@ process: os.Process
 @(private="file")
 collider_editor: Collider_editor = {-1, Vector2{0, 0}, Vector2{0, 0}, 0, 0}
 sprite_map: map[string]Sprite
+selected_entity: ^Entity
+dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -343,15 +346,28 @@ ui_show_left :: proc() {
         if imgui.BeginTabBar("AssetsTabBar") {
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Entities") {
-                if project_loaded {
-                    imgui.Text("Entities here")
+                if imgui.BeginChild("EntitiesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                    if project_loaded {
+                        for i := 0; i < len(entities); i+=1 {
+                            if entities[i].type != "" {
+                                label := fmt.ctprintf("%s%d", entities[i].type, i)
+                                if imgui.Selectable(label, entities[i].type == selected_entity.type, {.SelectOnNav}, imgui.Vec2{270, 15}) {
+                                    set_selected_entity(&entities[i])
+                                }
+                            }
+                        }
+                    }
+                    imgui.EndChild()
                 }
                 imgui.EndTabItem()
             }
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("UI") {
-                if project_loaded {
-                    imgui.Text("UI here")
+                if imgui.BeginChild("UIChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                    if project_loaded {
+                        imgui.Text("UI assets here.")
+                    }
+                    imgui.EndChild()
                 }
                 imgui.EndTabItem()
             }
@@ -396,336 +412,344 @@ ui_show_right :: proc() {
         if imgui.BeginTabBar("AssetsTabBar") {
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Properties") {
-                if selected_asset != nil && project_loaded {
-                    switch selected_asset.type {
-                    case .Sprite:
-                        imgui.Text(selected_asset.name)
-                        imgui.Text(fmt.ctprintf("Size: %.0fx%.0f", selected_asset.texture.size.x, selected_asset.texture.size.y))
-                        //TODO: Fix crash here? : (
-                        /*ratio := f32(selected_asset.texture.size.x) / f32(selected_asset.texture.size.y)
-                        if ratio > 1.0 {
-                            imgui.Image(texture_to_image(selected_asset.texture.texture), imgui.Vec2{100, 100 / ratio})
-                        } else {
-                            imgui.Image(texture_to_image(selected_asset.texture.texture), imgui.Vec2{100 * ratio, 100})
-                        }*/
-                        imgui.Spacing()
-                        imgui.Text("Texture type:")
-                        sprite_type_pre = sprite_types[int(sprite_props.type)]
-                        if imgui.BeginCombo("##SpriteProps", sprite_type_pre) {
-                            for i := 0; i < len(sprite_types); i += 1 {
-                                is_selected := int(sprite_props.type) == i
-                                if imgui.Selectable(sprite_types[i], is_selected) {
-                                    sprite_props.type = string_type_to_type(sprite_types[i])
-                                }
-                                if is_selected {
-                                    imgui.SetItemDefaultFocus()
-                                }
-                            }
-                            imgui.EndCombo()
-                        }
-                        switch sprite_type_pre {
-                        case "Sprite":
-                            imgui.Text("Frames:")
-                            imgui.Text("X:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesX", &sprite_props.frames[0])
-                            imgui.Text("Y:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesY", &sprite_props.frames[1])
+                if imgui.BeginChild("PropertiesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                    if selected_asset != nil && project_loaded {
+                        switch selected_asset.type {
+                        case .Sprite:
+                            imgui.Text(selected_asset.name)
+                            imgui.Text(fmt.ctprintf("Size: %.0fx%.0f", selected_asset.texture.size.x, selected_asset.texture.size.y))
+                            //TODO: Fix crash here? : (
+                            /*ratio := f32(selected_asset.texture.size.x) / f32(selected_asset.texture.size.y)
+                            if ratio > 1.0 {
+                                imgui.Image(texture_to_image(selected_asset.texture.texture), imgui.Vec2{100, 100 / ratio})
+                            } else {
+                                imgui.Image(texture_to_image(selected_asset.texture.texture), imgui.Vec2{100 * ratio, 100})
+                            }*/
                             imgui.Spacing()
-                            imgui.Text("9 Slice:")
-                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                            if imgui.Checkbox("##9 Slice", &sprite_props.is_slice9) {
-                                if sprite_props.is_slice9 {
-                                    sprite_props.slice9 = [4]i32{1, 1, 1, 1}
-                                } else {
-                                    sprite_props.slice9 = [4]i32{0, 0, 0, 0}
+                            imgui.Text("Texture type:")
+                            sprite_type_pre = sprite_types[int(sprite_props.type)]
+                            if imgui.BeginCombo("##SpriteProps", sprite_type_pre) {
+                                for i := 0; i < len(sprite_types); i += 1 {
+                                    is_selected := int(sprite_props.type) == i
+                                    if imgui.Selectable(sprite_types[i], is_selected) {
+                                        sprite_props.type = string_type_to_type(sprite_types[i])
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
                                 }
+                                imgui.EndCombo()
                             }
-                            if sprite_props.is_slice9 {
+                            switch sprite_type_pre {
+                            case "Sprite":
+                                imgui.Text("Frames:")
+                                imgui.Text("X:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
+                                imgui.SetNextItemWidth(120)
+                                imgui.InputInt("##FramesX", &sprite_props.frames[0])
+                                imgui.Text("Y:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
+                                imgui.SetNextItemWidth(120)
+                                imgui.InputInt("##FramesY", &sprite_props.frames[1])
                                 imgui.Spacing()
-                                imgui.Text("Left:")
-                                imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                imgui.Text("9 Slice:")
+                                imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                                if imgui.Checkbox("##9 Slice", &sprite_props.is_slice9) {
+                                    if sprite_props.is_slice9 {
+                                        sprite_props.slice9 = [4]i32{1, 1, 1, 1}
+                                    } else {
+                                        sprite_props.slice9 = [4]i32{0, 0, 0, 0}
+                                    }
+                                }
+                                if sprite_props.is_slice9 {
+                                    imgui.Spacing()
+                                    imgui.Text("Left:")
+                                    imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                    imgui.SetNextItemWidth(120)
+                                    imgui.InputInt("##Slice9_1", &sprite_props.slice9.x)
+                                    imgui.Text("Top:")
+                                    imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                    imgui.SetNextItemWidth(120)
+                                    imgui.InputInt("##Slice9_2", &sprite_props.slice9.y)
+                                    imgui.Text("Right:")
+                                    imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                    imgui.SetNextItemWidth(120)
+                                    imgui.InputInt("##Slice9_3", &sprite_props.slice9.z)
+                                    imgui.Text("Bottom:")
+                                    imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                    imgui.SetNextItemWidth(120)
+                                    imgui.InputInt("##Slice9_4", &sprite_props.slice9.w)
+                                }
+                            case "Tilemap":
+                                imgui.Text("Frames:")
+                                imgui.Text("X:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
                                 imgui.SetNextItemWidth(120)
-                                imgui.InputInt("##Slice9_1", &sprite_props.slice9.x)
-                                imgui.Text("Top:")
-                                imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                imgui.InputInt("##FramesX", &sprite_props.frames[0])
+                                imgui.Text("Y:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
                                 imgui.SetNextItemWidth(120)
-                                imgui.InputInt("##Slice9_2", &sprite_props.slice9.y)
-                                imgui.Text("Right:")
-                                imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                imgui.InputInt("##FramesY", &sprite_props.frames[1])
+                            case "Font":
+                                imgui.Text("Frames:")
+                                imgui.Text("X:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
                                 imgui.SetNextItemWidth(120)
-                                imgui.InputInt("##Slice9_3", &sprite_props.slice9.z)
-                                imgui.Text("Bottom:")
-                                imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
+                                imgui.InputInt("##FramesX", &sprite_props.frames[0])
+                                imgui.Text("Y:")
+                                imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
                                 imgui.SetNextItemWidth(120)
-                                imgui.InputInt("##Slice9_4", &sprite_props.slice9.w)
+                                imgui.InputInt("##FramesY", &sprite_props.frames[1])
                             }
-                        case "Tilemap":
-                            imgui.Text("Frames:")
-                            imgui.Text("X:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesX", &sprite_props.frames[0])
-                            imgui.Text("Y:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesY", &sprite_props.frames[1])
-                        case "Font":
-                            imgui.Text("Frames:")
-                            imgui.Text("X:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesX", &sprite_props.frames[0])
-                            imgui.Text("Y:")
-                            imgui.SetCursorPos(imgui.Vec2{30, imgui.GetCursorPos().y - 25})
-                            imgui.SetNextItemWidth(120)
-                            imgui.InputInt("##FramesY", &sprite_props.frames[1])
-                        }
-                        imgui.Spacing()
-                        imgui.Spacing()
-                        if imgui.Button("Apply") {
-                            meta_save_sprite(selected_asset.path, sprite_props)
-                        }
-                        imgui.SameLine(80, 0)
-                        if imgui.Button("Revert") {
-                            sprite_props = meta_load_sprite(selected_asset.path)
-                        }
-                    case .Sound:
-                        imgui.Text(selected_asset.name)
-                        imgui.Text(fmt.ctprintf("Duration: %s", audio_props.duration))
-                        imgui.Text(fmt.ctprintf("Channels: %d", audio_props.channels))
-                        imgui.Text(fmt.ctprintf("Sample Rate: %d", audio_props.sample_rate))
-                        imgui.Spacing()
-                        if mix.TrackPlaying(loaded_track) {
-                            if imgui.ImageButton("StopTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
-                                if !mix.StopTrack(loaded_track, 0) {
-                                    panic("Failed to stop audio.")
-                                }
+                            imgui.Spacing()
+                            imgui.Spacing()
+                            if imgui.Button("Apply") {
+                                meta_save_sprite(selected_asset.path, sprite_props)
                             }
-                        } else {
-                            if imgui.ImageButton("PlayTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
-                                options := sdl.CreateProperties()
-                                if !mix.PlayTrack(loaded_track, options) {
-                                    panic("Failed to play audio.")
-                                }
+                            imgui.SameLine(80, 0)
+                            if imgui.Button("Revert") {
+                                sprite_props = meta_load_sprite(selected_asset.path)
                             }
-                        }
-                        imgui.SameLine(60, 0)
-                        duration := mix.GetAudioDuration(mix.GetTrackAudio(loaded_track))
-                        my_value := f32(mix.GetTrackPlaybackPosition(loaded_track)) / f32(duration)
-                        if imgui.SliderFloat("##Playback Slider", &my_value, 0.0, 1.0, "") {
-                            if !mix.SetTrackPlaybackPosition(loaded_track, i64(my_value * f32(duration))) {
-                                panic("Failed to set audio position.")
-                            }
-                        }
-                        imgui.Spacing()
-                        imgui.Text("Preload:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.Checkbox("##Preload", &audio_props.preload)
-                        imgui.Spacing()
-                        imgui.Spacing()
-                        if imgui.Button("Apply") {
-                            meta_save_audio(selected_asset.path, audio_props)
-                        }
-                        imgui.SameLine(80, 0)
-                        if imgui.Button("Revert") {
-                            audio_props = meta_load_audio(selected_asset.path, true)
-                        }
-                    case .Entity:
-                        imgui.Text(selected_asset.name)
-                        imgui.Spacing()
-                        imgui.Text("Sprite:")
-                        if entity_props.sprite != "" {
-                            entity_type_pre = entity_props.sprite
-                        } else {
-                            entity_type_pre = strings.clone_to_cstring("None")
-                        }
-                        if imgui.BeginCombo("##Sprite", entity_type_pre) {
-                            for i := 0; i < len(full_assets_list.textures); i += 1 {
-                                is_selected := entity_props.sprite == full_assets_list.textures[i].name
-                                if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
-                                    delete(entity_props.sprite)
-                                    entity_props.sprite = strings.clone_to_cstring(string(full_assets_list.textures[i].name))
-                                }
-                                if is_selected {
-                                    imgui.SetItemDefaultFocus()
-                                }
-                            }
-                            imgui.EndCombo()
-                        }
-                        imgui.Spacing()
-                        col := entity_props.collider
-                        imgui.Text(fmt.ctprintf("Collider: %d, %d, %d, %d", col.x, col.y, col.z, col.w))
-                        if imgui.Button("Edit collider", imgui.Vec2{102, 25}) {
-                            for tex in full_assets_list.textures {
-                                if tex.name == entity_props.sprite {
-                                    if collider_editor.texture != -1 {
-                                        texture_destroy(u32(collider_editor.texture))
+                        case .Sound:
+                            imgui.Text(selected_asset.name)
+                            imgui.Text(fmt.ctprintf("Duration: %s", audio_props.duration))
+                            imgui.Text(fmt.ctprintf("Channels: %d", audio_props.channels))
+                            imgui.Text(fmt.ctprintf("Sample Rate: %d", audio_props.sample_rate))
+                            imgui.Spacing()
+                            if mix.TrackPlaying(loaded_track) {
+                                if imgui.ImageButton("StopTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+                                    if !mix.StopTrack(loaded_track, 0) {
+                                        panic("Failed to stop audio.")
                                     }
-                                    texture, size := texture_from_name(tex.path)
-                                    props := meta_load_sprite(tex.path)
-                                    collider_editor.frames = {f32(props.frames.x), f32(props.frames.y)}
-                                    collider_editor.texture, collider_editor.size = i32(texture), size
-                                    entity_props.collider = {0, i32(size.y * (1 / collider_editor.frames.y)), 0, i32(size.x * (1 / collider_editor.frames.x))}
-                                    collider_editor.frameX = 0
-                                    collider_editor.frameY = 0
-                                    break
+                                }
+                            } else {
+                                if imgui.ImageButton("PlayTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+                                    options := sdl.CreateProperties()
+                                    if !mix.PlayTrack(loaded_track, options) {
+                                        panic("Failed to play audio.")
+                                    }
                                 }
                             }
-                            if (collider_editor.texture != -1) {
-                                show_edit_collider = true
+                            imgui.SameLine(60, 0)
+                            duration := mix.GetAudioDuration(mix.GetTrackAudio(loaded_track))
+                            my_value := f32(mix.GetTrackPlaybackPosition(loaded_track)) / f32(duration)
+                            if imgui.SliderFloat("##Playback Slider", &my_value, 0.0, 1.0, "") {
+                                if !mix.SetTrackPlaybackPosition(loaded_track, i64(my_value * f32(duration))) {
+                                    panic("Failed to set audio position.")
+                                }
                             }
-                        }
-                        imgui.Text("Animate on start:")
-                        imgui.SetCursorPos(imgui.Vec2{135, imgui.GetCursorPos().y - 25})
-                        imgui.Checkbox("##AnimateOnStart", &entity_props.animate_on_start)
-                        imgui.Spacing()
-                        imgui.Text("Mass:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.SetNextItemWidth(114)
-                        imgui.InputFloat("##Mass", &entity_props.mass, 0.1, 1.0, "%.2f")
-                        imgui.Text("Friction:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.SetNextItemWidth(114)
-                        imgui.InputFloat("##Friction", &entity_props.friction, 0.1, 1.0, "%.2f")
-                        imgui.Text("Bounciness:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.SetNextItemWidth(114)
-                        imgui.InputFloat("##Bounciness", &entity_props.bounciness, 0.1, 1.0, "%.2f")
-                        imgui.Text("Trigger:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.Checkbox("##Trigger", &entity_props.trigger)
-                        imgui.Text("No Gravity:")
-                        imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
-                        imgui.Checkbox("##No Gravity", &entity_props.no_gravity)
-                        imgui.Spacing()
-                        imgui.Text("Start:")
-                        imgui.Text("(self: ^Entity)")
-                        ui_script_dropdown("##Start", &entity_props.script_file4, &script_idx4)
-                        if imgui.BeginCombo("##StartScript", entity_props.start) {
-                            if entity_props.script_file4 != "None" {
-                                for func in full_assets_list.scripts[script_idx4].func {
-                                    if !strings.contains(string(func.signature), "(self: ^Entity)") {
-                                       continue 
-                                    }
-                                    is_selected := entity_props.start == func.name
-                                    if imgui.Selectable(func.name, is_selected) {
-                                        delete(entity_props.start)
-                                        entity_props.start = strings.clone_to_cstring(string(func.name))
+                            imgui.Spacing()
+                            imgui.Text("Preload:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.Checkbox("##Preload", &audio_props.preload)
+                            imgui.Spacing()
+                            imgui.Spacing()
+                            if imgui.Button("Apply") {
+                                meta_save_audio(selected_asset.path, audio_props)
+                            }
+                            imgui.SameLine(80, 0)
+                            if imgui.Button("Revert") {
+                                audio_props = meta_load_audio(selected_asset.path, true)
+                            }
+                        case .Entity:
+                            imgui.Text(selected_asset.name)
+                            imgui.Spacing()
+                            imgui.Text("Sprite:")
+                            if entity_props.sprite != "" {
+                                entity_type_pre = entity_props.sprite
+                            } else {
+                                entity_type_pre = strings.clone_to_cstring("None")
+                            }
+                            if imgui.BeginCombo("##Sprite", entity_type_pre) {
+                                for i := 0; i < len(full_assets_list.textures); i += 1 {
+                                    is_selected := entity_props.sprite == full_assets_list.textures[i].name
+                                    if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
+                                        delete(entity_props.sprite)
+                                        entity_props.sprite = strings.clone_to_cstring(string(full_assets_list.textures[i].name))
                                     }
                                     if is_selected {
                                         imgui.SetItemDefaultFocus()
                                     }
                                 }
+                                imgui.EndCombo()
                             }
-                            imgui.EndCombo()
-                        }
-                        imgui.Text("Update:")
-                        imgui.Text("(self: ^Entity, delta_time: f32)")
-                        ui_script_dropdown("##Update", &entity_props.script_file1, &script_idx1)
-                        if imgui.BeginCombo("##UpdateScript", entity_props.update) {
-                            if entity_props.script_file1 != "None" {
-                                for func in full_assets_list.scripts[script_idx1].func {
-                                    if !strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") {
-                                       continue 
-                                    }
-                                    is_selected := entity_props.update == func.name
-                                    if imgui.Selectable(func.name, is_selected) {
-                                        delete(entity_props.update)
-                                        entity_props.update = strings.clone_to_cstring(string(func.name))
-                                    }
-                                    if is_selected {
-                                        imgui.SetItemDefaultFocus()
+                            imgui.Spacing()
+                            col := entity_props.collider
+                            imgui.Text(fmt.ctprintf("Collider: %d, %d, %d, %d", col.x, col.y, col.z, col.w))
+                            if imgui.Button("Edit collider", imgui.Vec2{102, 25}) {
+                                for tex in full_assets_list.textures {
+                                    if tex.name == entity_props.sprite {
+                                        if collider_editor.texture != -1 {
+                                            texture_destroy(u32(collider_editor.texture))
+                                        }
+                                        texture, size := texture_from_name(tex.path)
+                                        props := meta_load_sprite(tex.path)
+                                        collider_editor.frames = {f32(props.frames.x), f32(props.frames.y)}
+                                        collider_editor.texture, collider_editor.size = i32(texture), size
+                                        entity_props.collider = {0, i32(size.y * (1 / collider_editor.frames.y)), 0, i32(size.x * (1 / collider_editor.frames.x))}
+                                        collider_editor.frameX = 0
+                                        collider_editor.frameY = 0
+                                        break
                                     }
                                 }
-                            }
-                            imgui.EndCombo()
-                        }
-                        imgui.Text("On Collide Entity:")
-                        imgui.Text("(self: ^Entity, other: ^Entity)")
-                        ui_script_dropdown("##On Collide Entity", &entity_props.script_file2, &script_idx2)
-                        if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
-                            if entity_props.script_file2 != "None" {
-                                for func in full_assets_list.scripts[script_idx2].func {
-                                    if !strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
-                                       continue
-                                    }
-                                    is_selected := entity_props.on_collide_entity == func.name
-                                    if imgui.Selectable(func.name, is_selected) {
-                                        delete(entity_props.on_collide_entity)
-                                        entity_props.on_collide_entity = strings.clone_to_cstring(string(func.name))
-                                    }
-                                    if is_selected {
-                                        imgui.SetItemDefaultFocus()
-                                    }
+                                if (collider_editor.texture != -1) {
+                                    show_edit_collider = true
                                 }
                             }
-                            imgui.EndCombo()
-                        }
-                        imgui.Text("On Collide Tile:")
-                        imgui.Text("(self: ^Entity, collide_info: Vector2)")
-                        ui_script_dropdown("##On Collide Tile", &entity_props.script_file3, &script_idx3)
-                        if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
-                            if entity_props.script_file3 != "None" {
-                                for func in full_assets_list.scripts[script_idx3].func {
-                                    if !strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") {
-                                       continue 
-                                    }
-                                    is_selected := entity_props.on_collide_tile == func.name
-                                    if imgui.Selectable(func.name, is_selected) {
-                                        delete(entity_props.on_collide_tile)
-                                        entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
-                                    }
-                                    if is_selected {
-                                        imgui.SetItemDefaultFocus()
+                            imgui.Text("Animate on start:")
+                            imgui.SetCursorPos(imgui.Vec2{135, imgui.GetCursorPos().y - 25})
+                            imgui.Checkbox("##AnimateOnStart", &entity_props.animate_on_start)
+                            imgui.Spacing()
+                            imgui.Text("Mass:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(114)
+                            imgui.InputFloat("##Mass", &entity_props.mass, 0.1, 1.0, "%.2f")
+                            imgui.Text("Friction:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(114)
+                            imgui.InputFloat("##Friction", &entity_props.friction, 0.1, 1.0, "%.2f")
+                            imgui.Text("Bounciness:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(114)
+                            imgui.InputFloat("##Bounciness", &entity_props.bounciness, 0.1, 1.0, "%.2f")
+                            imgui.Text("Trigger:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.Checkbox("##Trigger", &entity_props.trigger)
+                            imgui.Text("No Gravity:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.Checkbox("##No Gravity", &entity_props.no_gravity)
+                            imgui.Spacing()
+                            imgui.Text("Start:")
+                            imgui.Text("(self: ^Entity)")
+                            ui_script_dropdown("##Start", &entity_props.script_file4, &script_idx4)
+                            if imgui.BeginCombo("##StartScript", entity_props.start) {
+                                if entity_props.script_file4 != "None" {
+                                    for func in full_assets_list.scripts[script_idx4].func {
+                                        if !strings.contains(string(func.signature), "(self: ^Entity)") {
+                                        continue 
+                                        }
+                                        is_selected := entity_props.start == func.name
+                                        if imgui.Selectable(func.name, is_selected) {
+                                            delete(entity_props.start)
+                                            entity_props.start = strings.clone_to_cstring(string(func.name))
+                                        }
+                                        if is_selected {
+                                            imgui.SetItemDefaultFocus()
+                                        }
                                     }
                                 }
+                                imgui.EndCombo()
                             }
-                            imgui.EndCombo()
-                        }
-                        imgui.Text("Destroy:")
-                        imgui.Text("(self: ^Entity)")
-                        ui_script_dropdown("##Destroy", &entity_props.script_file5, &script_idx5)
-                        if imgui.BeginCombo("##DestroyScript", entity_props.destroy) {
-                            if entity_props.script_file5 != "None" {
-                                for func in full_assets_list.scripts[script_idx5].func {
-                                    if !strings.contains(string(func.signature), "(self: ^Entity)") {
-                                       continue 
-                                    }
-                                    is_selected := entity_props.destroy == func.name
-                                    if imgui.Selectable(func.name, is_selected) {
-                                        delete(entity_props.destroy)
-                                        entity_props.destroy = strings.clone_to_cstring(string(func.name))
-                                    }
-                                    if is_selected {
-                                        imgui.SetItemDefaultFocus()
+                            imgui.Text("Update:")
+                            imgui.Text("(self: ^Entity, delta_time: f32)")
+                            ui_script_dropdown("##Update", &entity_props.script_file1, &script_idx1)
+                            if imgui.BeginCombo("##UpdateScript", entity_props.update) {
+                                if entity_props.script_file1 != "None" {
+                                    for func in full_assets_list.scripts[script_idx1].func {
+                                        if !strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") {
+                                        continue 
+                                        }
+                                        is_selected := entity_props.update == func.name
+                                        if imgui.Selectable(func.name, is_selected) {
+                                            delete(entity_props.update)
+                                            entity_props.update = strings.clone_to_cstring(string(func.name))
+                                        }
+                                        if is_selected {
+                                            imgui.SetItemDefaultFocus()
+                                        }
                                     }
                                 }
+                                imgui.EndCombo()
                             }
-                            imgui.EndCombo()
+                            imgui.Text("On Collide Entity:")
+                            imgui.Text("(self: ^Entity, other: ^Entity)")
+                            ui_script_dropdown("##On Collide Entity", &entity_props.script_file2, &script_idx2)
+                            if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
+                                if entity_props.script_file2 != "None" {
+                                    for func in full_assets_list.scripts[script_idx2].func {
+                                        if !strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
+                                        continue
+                                        }
+                                        is_selected := entity_props.on_collide_entity == func.name
+                                        if imgui.Selectable(func.name, is_selected) {
+                                            delete(entity_props.on_collide_entity)
+                                            entity_props.on_collide_entity = strings.clone_to_cstring(string(func.name))
+                                        }
+                                        if is_selected {
+                                            imgui.SetItemDefaultFocus()
+                                        }
+                                    }
+                                }
+                                imgui.EndCombo()
+                            }
+                            imgui.Text("On Collide Tile:")
+                            imgui.Text("(self: ^Entity, collide_info: Vector2)")
+                            ui_script_dropdown("##On Collide Tile", &entity_props.script_file3, &script_idx3)
+                            if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
+                                if entity_props.script_file3 != "None" {
+                                    for func in full_assets_list.scripts[script_idx3].func {
+                                        if !strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") {
+                                        continue 
+                                        }
+                                        is_selected := entity_props.on_collide_tile == func.name
+                                        if imgui.Selectable(func.name, is_selected) {
+                                            delete(entity_props.on_collide_tile)
+                                            entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
+                                        }
+                                        if is_selected {
+                                            imgui.SetItemDefaultFocus()
+                                        }
+                                    }
+                                }
+                                imgui.EndCombo()
+                            }
+                            imgui.Text("Destroy:")
+                            imgui.Text("(self: ^Entity)")
+                            ui_script_dropdown("##Destroy", &entity_props.script_file5, &script_idx5)
+                            if imgui.BeginCombo("##DestroyScript", entity_props.destroy) {
+                                if entity_props.script_file5 != "None" {
+                                    for func in full_assets_list.scripts[script_idx5].func {
+                                        if !strings.contains(string(func.signature), "(self: ^Entity)") {
+                                        continue 
+                                        }
+                                        is_selected := entity_props.destroy == func.name
+                                        if imgui.Selectable(func.name, is_selected) {
+                                            delete(entity_props.destroy)
+                                            entity_props.destroy = strings.clone_to_cstring(string(func.name))
+                                        }
+                                        if is_selected {
+                                            imgui.SetItemDefaultFocus()
+                                        }
+                                    }
+                                }
+                                imgui.EndCombo()
+                            }
+                            imgui.Spacing()
+                            imgui.Spacing()
+                            if imgui.Button("Apply") {
+                                meta_save_entity(selected_asset.path, entity_props)
+                            }
+                            imgui.SameLine(80, 0)
+                            if imgui.Button("Revert") {
+                                entity_props = meta_load_entity(selected_asset.path, true)
+                            }
+                        case .Placed_entity:
+                            imgui.Text(strings.clone_to_cstring(selected_entity.type, context.temp_allocator))
+                        case .Script:
+                        case .Unknown:
                         }
-                        imgui.Spacing()
-                        imgui.Spacing()
-                        if imgui.Button("Apply") {
-                            meta_save_entity(selected_asset.path, entity_props)
-                        }
-                        imgui.SameLine(80, 0)
-                        if imgui.Button("Revert") {
-                            entity_props = meta_load_entity(selected_asset.path, true)
-                        }
-                    case .Script:
-                    case .Unknown:
                     }
+                    imgui.EndChild()
                 }
                 imgui.EndTabItem()
             }
             imgui.SetNextItemWidth(90)
             if imgui.BeginTabItem("Tiles") {
-                if project_loaded {
-                    imgui.Text("Tiles here")
+                if imgui.BeginChild("TilesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                    if project_loaded {
+                        imgui.Text("Tiles here")
+                    }
+                    imgui.EndChild()
                 }
                 imgui.EndTabItem()
             }
@@ -1048,6 +1072,12 @@ ui_show_middle :: proc() {
                         create_entity(string(selected_asset.name), screen_to_position(imgui.GetMousePos()))
                     }
                 }
+                if selected_asset != nil && selected_asset.type == .Placed_entity {
+                    entity_size := imgui.Vec2{selected_entity.size.x, selected_entity.size.y}
+                    window_pos := position_to_screen(selected_entity.position)
+                    ui_draw_rect(window_pos, window_pos + entity_size)
+                }
+                
                 imgui.EndTabItem()
             }
         }
@@ -1134,6 +1164,7 @@ draw_asset_items :: proc() {
                 audio_props = meta_load_audio(assets_list[i].path, true)
             case .Entity:
                 entity_props = meta_load_entity(assets_list[i].path, true)
+            case .Placed_entity:
             case .Script:
             case .Unknown:
                 //Do nothing atm
@@ -1740,6 +1771,13 @@ screen_to_position :: proc(screen_pos: imgui.Vec2) -> Vector2 {
     return {final_pos.x, final_pos.y * -1}
 }
 
+position_to_screen :: proc(pos: Vector2) -> imgui.Vec2 {
+    size := viewport.Size - imgui.Vec2{600, 270}
+    viewport_pos := viewport.Pos + imgui.Vec2{300, 60}
+    screen_pos := (imgui.Vec2{pos.x, pos.y * -1} * QUAD_SIZE) + (viewport_pos + (size / 2))
+    return screen_pos
+}
+
 create_entity :: proc(type: string, pos: Vector2) {
     entity_meta: Entity_props
     for entity in full_assets_list.entities {
@@ -1767,4 +1805,10 @@ create_entity :: proc(type: string, pos: Vector2) {
     entity.physics.collision_mask = 0xFFFFFFFF
     entity.position = pos
     entity.type = type
+    set_selected_entity(entity)
+}
+
+set_selected_entity :: proc(entity: ^Entity) {
+    selected_entity = entity
+    selected_asset = &dummy_entity_asset
 }
