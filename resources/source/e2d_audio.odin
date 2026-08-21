@@ -32,19 +32,17 @@ audio_create_sound :: proc(data: []u8, decompress: bool) -> ^mix.Track {
     return track
 }
 
-audio_play_sound :: proc(name: string, loop: bool) {
+audio_play_sound :: proc(idx: AudioType, loop: bool) {
     options := sdl.CreateProperties()
     if loop {
         sdl.SetNumberProperty(options, mix.PROP_PLAY_LOOPS_NUMBER, -1)
     }
-    idx := sound_map[name]
     if (!mix.PlayTrack(sounds[idx], options)) {
         panic("Couldn't play sound")
     }
 }
 
-audio_stop_sound :: proc(name: string) {
-    idx := sound_map[name]
+audio_stop_sound :: proc(idx: AudioType) {
     if (!mix.StopTrack(sounds[idx], 0)) {
         panic("Couldn't stop sound")
     }

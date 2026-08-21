@@ -1571,17 +1571,16 @@ build_assets :: proc() {
     tilemaps_count := 1
     fonts_count := 1
     sounds_count := 1
-    sprite_map: map[cstring]int
-    tilemap_map: map[string]int
-    font_map: map[string]int
-    sound_map: map[string]int
+    sprite_map: [dynamic]cstring
+    tilemap_map: [dynamic]string
+    font_map: [dynamic]string
 
     fd, _ := os.open(file_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     os.write_string(fd, "#+feature dynamic-literals\n")
     os.write_string(fd, "package main\n\nload_textures :: proc() {\n")
-    for i := 0; i < len(full_assets_list.textures); i += 1 {
-        meta := meta_load_sprite(full_assets_list.textures[i].path)
-        path, _ := os.get_relative_path(project_path, full_assets_list.textures[i].path, context.temp_allocator)
+    for texture in full_assets_list.textures {
+        meta := meta_load_sprite(texture.path)
+        path, _ := os.get_relative_path(project_path, texture.path, context.temp_allocator)
         path, _ = strings.replace(path, "\\", "/", -1, context.temp_allocator)
         switch meta.type {
         case .Sprite:
@@ -1589,52 +1588,51 @@ build_assets :: proc() {
             if meta.is_slice9 {
                 os.write_string(fd, fmt.tprintf("\tsprites[%d].slice9 = {{%d, %d, %d, %d}}\n", sprites_count - 1, meta.slice9[0], meta.slice9[1], meta.slice9[2], meta.slice9[3]))
             }
-            sprite_map[full_assets_list.textures[i].name] = sprites_count - 1
+            append(&sprite_map, texture.name)
             sprites_count += 1
         case .Tilemap:
             os.write_string(fd, fmt.tprintf("\ttilemaps[%d] = tilemap_load_tileset(#load(\"../%s\"))\n", tilemaps_count - 1, path))
-            tilemap_map[os.short_stem(path)] = tilemaps_count - 1
+            append(&tilemap_map, os.short_stem(path))
             tilemaps_count += 1
         case .Font:
             os.write_string(fd, fmt.tprintf("\tfonts[%d] = font_create(#load(\"../%s\"), {{%d, %d}})\n", fonts_count - 1, path, meta.frames[0], meta.frames[1]))
-            font_map[os.short_stem(path)] = fonts_count - 1
+            append(&font_map, os.short_stem(path))
             fonts_count += 1
         }
     }
     os.write_string(fd, "}\n\n")
 
     os.write_string(fd, "load_audio :: proc() {\n")
-    for i := 0; i < len(full_assets_list.audio); i += 1 {
-        meta := meta_load_audio(full_assets_list.audio[i], false)
-        path, _ := os.get_relative_path(project_path, full_assets_list.audio[i], context.temp_allocator)
+    for audio in full_assets_list.audio {
+        meta := meta_load_audio(audio, false)
+        path, _ := os.get_relative_path(project_path, audio, context.temp_allocator)
         path, _ = strings.replace(path, "\\", "/", -1, context.temp_allocator)
         os.write_string(fd, fmt.tprintf("\tsounds[%d] = audio_create_sound(#load(\"../%s\"), %t)\n", sounds_count - 1, path, meta.preload))
-        sound_map[os.short_stem(path)] = sounds_count - 1
         sounds_count += 1
     }
     os.write_string(fd, "}\n\n")
 
-    os.write_string(fd, "sprite_map := map[string]int {\n")
-    for key, value in sprite_map {
-        os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
+    os.write_string(fd, "SpriteType :: enum {\n")
+    for key, _ in sprite_map {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", key))
     }
     os.write_string(fd, "}\n")
 
-    os.write_string(fd, "tilemap_map := map[string]int {\n")
-    for key, value in tilemap_map {
-        os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
+    os.write_string(fd, "TilemapType :: enum {\n")
+    for key, _ in tilemap_map {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", key))
     }
     os.write_string(fd, "}\n")
 
-    os.write_string(fd, "font_map := map[string]int {\n")
-    for key, value in font_map {
-        os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
+    os.write_string(fd, "FontType :: enum {\n")
+    for key, _ in font_map {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", key))
     }
     os.write_string(fd, "}\n\n")
 
-    os.write_string(fd, "sound_map := map[string]int {\n")
-    for key, value in sound_map {
-        os.write_string(fd, fmt.tprintf("\t\"%s\" = %d,\n", key, value))
+    os.write_string(fd, "AudioType :: enum {\n")
+    for audio in full_assets_list.audio {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", os.short_stem(audio)))
     }
     os.write_string(fd, "}\n\n")
 
@@ -1657,7 +1655,7 @@ build_assets :: proc() {
         name := os.short_stem(entity)
         meta := meta_load_entity(entity)
         os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", name))
-        os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, \"%s\")\n", name, meta.sprite))
+        os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, .%s)\n", name, meta.sprite))
         if meta.update != "" && meta.update != "None" {
             os.write_string(fd, fmt.tprintf("\tself.update = %s\n", meta.update))
         }
@@ -1695,7 +1693,6 @@ build_assets :: proc() {
     delete(sprite_map)
     delete(tilemap_map)
     delete(font_map)
-    delete(sound_map)
 }
 
 add_asset :: proc(path: string, ext: string) {
