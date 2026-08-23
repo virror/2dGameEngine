@@ -20,10 +20,12 @@ Entity :: struct {
     velocity: Vector2,
     size: Vector2,
     anim: Animation,
-    flip: Vector2,
+    flipX: bool,
+    flipY: bool,
     physics: Physics,
     background: bool,
-    id: string,
+    id: cstring,
+    marked_for_destruction: bool,
 }
 
 Animation :: struct {
@@ -55,17 +57,19 @@ EntityId :: distinct u64
 
 entities: [ENTITY_COUNT]Entity
 
-entity_spawn :: proc() -> ^Entity {
+entity_spawn :: proc() -> (^Entity, int) {
     entity: ^Entity
+    id := 0
     // NOTE: Linear search, not ideal
     for &e, i in entities {
         if e.type == "" {
             entity = &entities[i]
+            id = i
             break
         }
     }
     assert(entity != nil)
-    return entity
+    return entity, id
 }
 
 entity_destroy :: proc(entity: ^Entity) {
@@ -126,7 +130,7 @@ entity_render :: proc(entity: ^Entity) {
             size = entity.size,
             scale = 1 / entity.sprite.frames,
             offset = offset,
-            flip = entity.flip,
+            flip = {entity.flipX ? 1 : 0, entity.flipY ? 1 : 0},
             color = entity.sprite.color,
             slice9 = {0, 0, 0, 0},
             tex_size = {0, 0},

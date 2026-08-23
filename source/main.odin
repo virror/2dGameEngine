@@ -248,9 +248,11 @@ poll_files :: proc() {
                         }
                     case ".ent":
                         for i in 0..<len(full_assets_list.entities) {
-                            if full_assets_list.entities[i] == old_name {
-                                delete(full_assets_list.entities[i])
-                                full_assets_list.entities[i] = strings.clone(event.path)
+                            if full_assets_list.entities[i].path == old_name {
+                                delete(full_assets_list.entities[i].path)
+                                delete(full_assets_list.entities[i].name)
+                                full_assets_list.entities[i].path = strings.clone(event.path)
+                                full_assets_list.entities[i].name = strings.clone_to_cstring(os.short_stem(event.path))
                                 break
                             }
                         }

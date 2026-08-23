@@ -90,7 +90,7 @@ Asset_List :: struct {
     textures: [dynamic]Asset_list_item,
     scripts: [dynamic]Asset_list_script,
     audio: [dynamic]string,
-    entities: [dynamic]string,
+    entities: [dynamic]Asset_list_item,
 }
 
 file_watcher: fsw.Watcher
@@ -218,7 +218,8 @@ ui_cleanup :: proc() {
     }
     delete(full_assets_list.audio)
     for asset in full_assets_list.entities {
-        delete(asset)
+        delete(asset.name)
+        delete(asset.path)
     }
     delete(full_assets_list.entities)
     delete(textures)
@@ -350,10 +351,11 @@ ui_show_left :: proc() {
                     if project_loaded {
                         for i := 0; i < len(entities); i+=1 {
                             if entities[i].type != "" {
-                                label := fmt.ctprintf("%s%d", entities[i].type, i)
-                                if imgui.Selectable(label, entities[i].type == selected_entity.type, {.SelectOnNav}, imgui.Vec2{270, 15}) {
+                                if imgui.Selectable(entities[i].id, entities[i].id == selected_entity.id, {.SelectOnNav}, imgui.Vec2{270, 15}) {
                                     set_selected_entity(&entities[i])
                                 }
+                                imgui.SetCursorPos(imgui.Vec2{5, imgui.GetCursorPos().y - 20})
+                                imgui.Text(strings.clone_to_cstring(entities[i].type))
                             }
                         }
                     }
@@ -735,6 +737,25 @@ ui_show_right :: proc() {
                             }
                         case .Placed_entity:
                             imgui.Text(strings.clone_to_cstring(selected_entity.type, context.temp_allocator))
+                            imgui.Spacing()
+                            imgui.Text("Position:")
+                            imgui.Text("X:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.InputFloat("##X", &selected_entity.position.x)
+                            imgui.Text("Y:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.InputFloat("##PosY", &selected_entity.position.y)
+                            imgui.Text("Flip:")
+                            imgui.Text("X:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.Checkbox("##FlipX", &selected_entity.flipX)
+                            imgui.Text("Y:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.Checkbox("##FlipY", &selected_entity.flipY)
                         case .Script:
                         case .Unknown:
                         }
@@ -1069,7 +1090,20 @@ ui_show_middle :: proc() {
                 imgui.Image(ref, size - imgui.Vec2{27, 50})
                 if imgui.IsItemClicked(.Left) {
                     if selected_asset != nil && selected_asset.type == .Entity {
-                        create_entity(string(selected_asset.name), screen_to_position(imgui.GetMousePos()))
+                        create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()))
+                    } else {
+                        point := screen_to_position(imgui.GetMousePos())
+                        for &entity in entities {
+                            if entity.type != "" {
+                                size :Rect= {0, entity.size.y / QUAD_SIZE, 0, entity.size.x / QUAD_SIZE}
+                                rect := rect_offset(size, entity.position)
+                                if point.x > rect.left && point.x < rect.right &&
+                                   point.y > rect.bottom && point.y < rect.top {
+                                    selected_entity = &entity
+                                    break
+                                }
+                            }
+                        }
                     }
                 }
                 if selected_asset != nil && selected_asset.type == .Placed_entity {
@@ -1446,7 +1480,9 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
             case ".odin":
                 list_add_script(info[i].fullpath)
             case ".ent":
-                append(&full_assets_list.entities, strings.clone(info[i].fullpath))
+                name := strings.clone_to_cstring(os.short_stem(info[i].fullpath))
+                item: Asset_list_item = {strings.clone(info[i].fullpath), name}
+                append(&full_assets_list.entities, item)
             }
         }
     }
@@ -1676,24 +1712,21 @@ build_assets :: proc() {
 
     os.write_string(fd, "EntityType :: enum {\n\tempty,\n")
     for entity in full_assets_list.entities {
-        name := os.short_stem(entity)
-        os.write_string(fd, fmt.tprintf("\t%s,\n", name))
+        os.write_string(fd, fmt.tprintf("\t%s,\n", entity.name))
     }
     os.write_string(fd, "}\n\n")
 
     os.write_string(fd, "entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {\n\te: ^Entity\n")
     os.write_string(fd, "\tif type != .empty {\n\t\t e = entity_spawn()\n\t}\n\tswitch type {\n\tcase .empty:\n\n")
     for entity in full_assets_list.entities {
-        name := os.short_stem(entity)
-        os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s_init(e, pos)\n", name, name))        
+        os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s_init(e, pos)\n", entity.name, entity.name))
     }
     os.write_string(fd, "\t}\n\tif e.start != nil {\n\t\te.start(e)\n\t}\n\treturn e\n}\n\n")
 
     for entity in full_assets_list.entities {
-        name := os.short_stem(entity)
-        meta := meta_load_entity(entity, false)
-        os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", name))
-        os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, .%s)\n", name, meta.sprite))
+        meta := meta_load_entity(entity.path, false)
+        os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", entity.name))
+        os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, .%s)\n", entity.name, meta.sprite))
         if meta.update != "" && meta.update != "None" {
             os.write_string(fd, fmt.tprintf("\tself.update = %s\n", meta.update))
         }
@@ -1742,7 +1775,7 @@ add_asset :: proc(path: string, ext: string) {
     case ".odin":
         append(&full_assets_list.scripts, Asset_list_script{strings.clone(path), strings.clone_to_cstring(os.short_stem(path)), {}})
     case ".ent":
-        append(&full_assets_list.entities, strings.clone(path))
+        append(&full_assets_list.entities, Asset_list_item{strings.clone(path), strings.clone_to_cstring(os.short_stem(path))})
     }
 }
 
@@ -1781,8 +1814,8 @@ position_to_screen :: proc(pos: Vector2) -> imgui.Vec2 {
 create_entity :: proc(type: string, pos: Vector2) {
     entity_meta: Entity_props
     for entity in full_assets_list.entities {
-        if os.base(entity) == type {
-            entity_meta = meta_load_entity(entity, false)
+        if os.short_stem(entity.path) == type {
+            entity_meta = meta_load_entity(entity.path, false)
             break
         }
     }
@@ -1798,13 +1831,13 @@ create_entity :: proc(type: string, pos: Vector2) {
             }
         }
     }
-    entity: ^Entity
-    entity = entity_spawn()
+    entity, id := entity_spawn()
     entity.sprite = value
     entity.size = value.size / value.frames
     entity.physics.collision_mask = 0xFFFFFFFF
     entity.position = pos
     entity.type = type
+    entity.id = fmt.caprintf("##%s_%d", type, id)
     set_selected_entity(entity)
 }
 
