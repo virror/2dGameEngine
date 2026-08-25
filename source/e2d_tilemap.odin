@@ -29,11 +29,11 @@ tilemap: Tilemap
 //Village tileset
 tiles: [64]Tile
 
-tilemap_load_tileset :: proc(data: []u8) -> Tilemap {
+tilemap_load_tileset :: proc(path: string) -> Tilemap {
     if tilemap.texture != 0 {
         texture_destroy(tilemap.texture)
     }
-    texture, tex_size := texture_create(data)
+    texture, tex_size := texture_from_name(path)
     frames: Vector2 = tex_size / QUAD_SIZE
     size: Vector2 = {1 / frames.x, 1 / frames.y}
 
@@ -132,15 +132,14 @@ tilemap_load_map :: proc(path: string, map_array: ^[TILE_ROWS][TILE_COLS]u16) {
     os.read(file, tmp[:])
     map_array^ = (cast(^[TILE_ROWS][TILE_COLS]u16)&tmp[0])^
     tile_array = map_array
-
     tmp2: [ENTITY_COUNT * size_of(MapEntity)]u8
     os.read(file, tmp2[:])
-    map_ents := (cast(^[ENTITY_COUNT]MapEntity)&tmp2[0])^
-    for e in map_ents {
+    //map_ents := (cast(^[ENTITY_COUNT]MapEntity)&tmp2[0])^
+    /*for e in map_ents {
         if e.type != "" {
             create_entity(e.type, e.position)
         }
-    }
+    }*/
     os.close(file)
     has_tilemap = true
 }

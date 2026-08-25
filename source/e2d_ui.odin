@@ -311,7 +311,7 @@ ui_render :: proc() {
             } else {
                 pos = ui_get_render_pos(e.anchor)
             }
-            render_set_camera(pos.x, pos.y)
+            render_set_camera(pos)
             e._position = pos
 
             eposition := e.position
@@ -415,7 +415,7 @@ ui_render :: proc() {
             }
         }
     }
-    render_set_camera(old_cam.x, old_cam.y)
+    render_set_camera(old_cam)
 }
 
 @(private="file")

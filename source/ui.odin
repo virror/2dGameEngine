@@ -95,8 +95,6 @@ Asset_List :: struct {
 
 file_watcher: fsw.Watcher
 @(private="file")
-io: ^imgui.IO
-@(private="file")
 viewport: ^imgui.Viewport
 @(private="file")
 window_flags := imgui.WindowFlags{.NoResize, .NoMove, .NoCollapse, .NoTitleBar}
@@ -158,6 +156,7 @@ collider_editor: Collider_editor = {-1, Vector2{0, 0}, Vector2{0, 0}, 0, 0}
 sprite_map: map[string]Sprite
 selected_entity: ^Entity
 dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
+dummy_no_asset: Asset = {"", {0, {0, 0}}, .Unknown, ""}
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -1092,27 +1091,63 @@ ui_show_middle :: proc() {
                     if selected_asset != nil && selected_asset.type == .Entity {
                         create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()))
                     } else {
-                        point := screen_to_position(imgui.GetMousePos())
+                        point := screen_to_position(imgui.GetMousePos())    
+                        selected := false
                         for &entity in entities {
                             if entity.type != "" {
                                 size :Rect= {0, entity.size.y / QUAD_SIZE, 0, entity.size.x / QUAD_SIZE}
                                 rect := rect_offset(size, entity.position)
                                 if point.x > rect.left && point.x < rect.right &&
                                    point.y > rect.bottom && point.y < rect.top {
-                                    selected_entity = &entity
+                                    set_selected_entity(&entity)
+                                    selected = true
                                     break
                                 }
                             }
+                        }
+                        if !selected {
+                            clear_selected_entity()
                         }
                     }
                 }
                 if selected_asset != nil && selected_asset.type == .Placed_entity {
                     entity_size := imgui.Vec2{selected_entity.size.x, selected_entity.size.y}
                     window_pos := position_to_screen(selected_entity.position)
+                    window_pos.y -= entity_size.y
                     ui_draw_rect(window_pos, window_pos + entity_size)
+                    imgui.SetCursorScreenPos(window_pos)
+                    imgui.InvisibleButton("##MoveButton", imgui.Vec2{entity_size.x, entity_size.y})
+                    if imgui.IsItemActive() && imgui.IsMouseDragging(imgui.MouseButton.Left, 0.0) {
+                        mouse_delta := imgui.GetIO().MouseDelta
+                        selected_entity.position.x += mouse_delta.x / QUAD_SIZE
+                        selected_entity.position.y -= mouse_delta.y / QUAD_SIZE
+                    }
                 }
-                
                 imgui.EndTabItem()
+            }
+            if imgui.IsMouseDragging(imgui.MouseButton.Middle, 0.0) && imgui.IsWindowHovered() {
+                io := imgui.GetIO()
+                mouse_delta := io.MouseDelta
+                cam_pos := render_get_camera()
+                cam_pos.x -= mouse_delta.x
+                cam_pos.y += mouse_delta.y
+                render_set_camera(cam_pos)
+            }
+            if imgui.IsKeyPressed(imgui.Key.Delete) && imgui.IsWindowFocused() {
+                if selected_entity != nil {
+                    actually_destroy_entity(selected_entity)
+                    clear_selected_entity()
+                }
+            }
+            //TODO: Remove below test code
+            imgui.SetCursorPos(imgui.Vec2{140, 4})
+            if imgui.Button("Load map", imgui.Vec2{100, 20}) {
+                tile_path := fmt.aprintf("%s\\tilemaps\\Village.png", project_path)
+                tilemaps[0] = tilemap_load_tileset(tile_path)
+                tilemap_set(0)
+                path := fmt.tprintf("%s\\maps\\Village.map", project_path)
+                map_array: [TILE_ROWS][TILE_COLS]u16
+                tilemap_load_map(path, &map_array)
             }
         }
         imgui.EndTabBar()
@@ -1844,4 +1879,10 @@ create_entity :: proc(type: string, pos: Vector2) {
 set_selected_entity :: proc(entity: ^Entity) {
     selected_entity = entity
     selected_asset = &dummy_entity_asset
+}
+
+clear_selected_entity :: proc() {
+    selected_asset = &dummy_no_asset
+    entity := Entity{}
+    selected_entity = &entity
 }

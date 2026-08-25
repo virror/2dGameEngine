@@ -403,8 +403,8 @@ render_text :: proc(font: Sprite, text: string, position: Vector2,
     }
 }
 
-render_set_camera :: proc(x: f32 = camera_position.x, y: f32 = camera_position.y) {
-    camera_position = {x, y}
+render_set_camera :: proc(position: Vector2) {
+    camera_position = position
 }
 
 render_get_camera :: proc() -> Vector2 {

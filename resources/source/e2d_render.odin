@@ -422,13 +422,13 @@ debug_text :: proc(text: string, row, column: int, size: Vector2 = {0, 0},
 
     old_cam := render_get_camera()
     pos_scale := resolution.y / VIRTUAL_HEIGHT
-    render_set_camera((resolution.x / 2) / pos_scale, (resolution.y / 2) / pos_scale)
+    render_set_camera((resolution / 2) / pos_scale)
     render_text(font, text, position, size, color)
-    render_set_camera(old_cam.x, old_cam.y)
+    render_set_camera(old_cam)
 }
 
-render_set_camera :: proc(x: f32 = camera_position.x, y: f32 = camera_position.y) {
-    camera_position = {x, y}
+render_set_camera :: proc(position: Vector2) {
+    camera_position = position
 }
 
 render_get_camera :: proc() -> Vector2 {

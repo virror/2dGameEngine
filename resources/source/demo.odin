@@ -47,7 +47,7 @@ player_update :: proc(self: ^Entity, delta_time: f32) {
         }
     }
     position := entity_center(self)
-    render_set_camera(position.x * QUAD_SIZE, position.y * QUAD_SIZE)
+    render_set_camera(position * QUAD_SIZE)
 }
 
 menu_main_create :: proc() {
