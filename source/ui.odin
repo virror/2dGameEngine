@@ -21,6 +21,8 @@ Asset_type :: enum {
     Sound,
     Script,
     Placed_entity,
+    Map,
+    UI,
 }
 
 Texture_type :: enum {
@@ -143,6 +145,8 @@ audio_texture: u32
 @(private="file")
 entity_texture: u32
 @(private="file")
+map_texture: u32
+@(private="file")
 recent_list: [5]Recent_item
 full_assets_list: Asset_List
 @(private="file")
@@ -157,6 +161,7 @@ sprite_map: map[string]Sprite
 selected_entity: ^Entity
 dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
 dummy_no_asset: Asset = {"", {0, {0, 0}}, .Unknown, ""}
+tilemap_sprite: cstring = ""
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -164,6 +169,7 @@ ui_init :: proc(window_: ^sdl.Window) {
     odin_texture, _ = texture_create(#load("../sprites/Odin.png"))
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
+    map_texture, _ = texture_create(#load("../sprites/Map.png"))
 }
 
 ui_cleanup :: proc() {
@@ -171,6 +177,7 @@ ui_cleanup :: proc() {
     texture_destroy(odin_texture)
     texture_destroy(audio_texture)
     texture_destroy(entity_texture)
+    texture_destroy(map_texture)
     fmt.println("0")
     for asset in assets_list {
         if asset.type == .Sprite {
@@ -366,7 +373,7 @@ ui_show_left :: proc() {
             if imgui.BeginTabItem("UI") {
                 if imgui.BeginChild("UIChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
-                        imgui.Text("UI assets here.")
+                        
                     }
                     imgui.EndChild()
                 }
@@ -756,6 +763,8 @@ ui_show_right :: proc() {
                             imgui.SetNextItemWidth(100)
                             imgui.Checkbox("##FlipY", &selected_entity.flipY)
                         case .Script:
+                        case .Map:
+                        case .UI:
                         case .Unknown:
                         }
                     }
@@ -764,10 +773,29 @@ ui_show_right :: proc() {
                 imgui.EndTabItem()
             }
             imgui.SetNextItemWidth(90)
-            if imgui.BeginTabItem("Tiles") {
+            if imgui.BeginTabItem("Tilemaps") {
                 if imgui.BeginChild("TilesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
-                        imgui.Text("Tiles here")
+                        imgui.Text("Tilemap:")
+                        if tilemap_sprite == "" {
+                            tilemap_sprite = strings.clone_to_cstring("None")
+                        }
+                        if imgui.BeginCombo("##Tilemap", tilemap_sprite) {
+                            for i := 0; i < len(full_assets_list.textures); i += 1 {
+                                is_selected := tilemap_sprite == full_assets_list.textures[i].name
+                                if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
+                                    delete(tilemap_sprite)
+                                    tilemap_sprite = strings.clone_to_cstring(string(full_assets_list.textures[i].name))
+                                    tile_path := fmt.aprintf("%s\\tilemaps\\%s.png", project_path, tilemap_sprite)
+                                    tilemaps[0] = tilemap_load_tileset(tile_path)
+                                    tilemap_set(0)
+                                }
+                                if is_selected {
+                                    imgui.SetItemDefaultFocus()
+                                }
+                            }
+                            imgui.EndCombo()
+                        }
                     }
                     imgui.EndChild()
                 }
@@ -806,7 +834,8 @@ ui_edit_collider :: proc() {
         pos2 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.w) * mul, f32(entity_props.collider.y) * mul}
         pos1.x += img_offset_x
         pos2.x += img_offset_x
-        ui_draw_rect(pos1, pos2)
+        draw_list := imgui.GetForegroundDrawList()
+        imgui.DrawList_AddRect(draw_list, pos1, pos2, 0xFF5555FF, 0, 1)
         if collider_editor.frames.y > 1 {
             if imgui.ImageButton("Up", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.333, 0.666}, imgui.Vec2{0.666, 1}) {
                 collider_editor.frameY -= 1
@@ -1023,7 +1052,8 @@ ui_show_bottom :: proc() {
 
                 pos1 := viewport.Pos + imgui.Vec2{300.0, viewport.Size.y - 173}
                 pos2 := viewport.Pos + imgui.Vec2{300.0, viewport.Size.y}
-                ui_draw_line(pos1, pos2)
+                draw_list := imgui.GetWindowDrawList()
+                imgui.DrawList_AddLine(draw_list, pos1, pos2, 0xFF4c4542, 2)
 
                 imgui.SameLine(310, 0)
                 if imgui.BeginChild("AssetsList", imgui.Vec2{viewport.Size.x - 310, 150}) {
@@ -1086,10 +1116,12 @@ ui_show_middle :: proc() {
             if imgui.BeginTabItem("Editor") {
                 ref: imgui.TextureRef
                 ref._TexID = (imgui.TextureID(uintptr(rt_texture.texture)))
-                imgui.Image(ref, size - imgui.Vec2{27, 50})
+                scene_pos := imgui.GetCursorScreenPos()
+                scene_size := size - imgui.Vec2{27, 50}
+                imgui.Image(ref, scene_size)
                 if imgui.IsItemClicked(.Left) {
                     if selected_asset != nil && selected_asset.type == .Entity {
-                        create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()))
+                        create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()), false, false)
                     } else {
                         point := screen_to_position(imgui.GetMousePos())    
                         selected := false
@@ -1114,13 +1146,16 @@ ui_show_middle :: proc() {
                     entity_size := imgui.Vec2{selected_entity.size.x, selected_entity.size.y}
                     window_pos := position_to_screen(selected_entity.position)
                     window_pos.y -= entity_size.y
-                    ui_draw_rect(window_pos, window_pos + entity_size)
+                    draw_list := imgui.GetForegroundDrawList()
+                    imgui.DrawList_PushClipRect(draw_list, scene_pos, scene_pos + scene_size, true)
+                    imgui.DrawList_AddRect(draw_list, window_pos, window_pos + entity_size, 0xFF5555FF, 0, 1)
                     imgui.SetCursorScreenPos(window_pos)
                     imgui.InvisibleButton("##MoveButton", imgui.Vec2{entity_size.x, entity_size.y})
                     if imgui.IsItemActive() && imgui.IsMouseDragging(imgui.MouseButton.Left, 0.0) {
-                        mouse_delta := imgui.GetIO().MouseDelta
-                        selected_entity.position.x += mouse_delta.x / QUAD_SIZE
-                        selected_entity.position.y -= mouse_delta.y / QUAD_SIZE
+                        if imgui.GetMousePos().x > scene_pos.x && imgui.GetMousePos().x < scene_pos.x + scene_size.x &&
+                           imgui.GetMousePos().y > scene_pos.y && imgui.GetMousePos().y < scene_pos.y + scene_size.y {
+                            selected_entity.position = screen_to_position(imgui.GetMousePos())
+                        }
                     }
                 }
                 imgui.EndTabItem()
@@ -1138,16 +1173,6 @@ ui_show_middle :: proc() {
                     actually_destroy_entity(selected_entity)
                     clear_selected_entity()
                 }
-            }
-            //TODO: Remove below test code
-            imgui.SetCursorPos(imgui.Vec2{140, 4})
-            if imgui.Button("Load map", imgui.Vec2{100, 20}) {
-                tile_path := fmt.aprintf("%s\\tilemaps\\Village.png", project_path)
-                tilemaps[0] = tilemap_load_tileset(tile_path)
-                tilemap_set(0)
-                path := fmt.tprintf("%s\\maps\\Village.map", project_path)
-                map_array: [TILE_ROWS][TILE_COLS]u16
-                tilemap_load_map(path, &map_array)
             }
         }
         imgui.EndTabBar()
@@ -1223,7 +1248,8 @@ draw_asset_items :: proc() {
             continue
         }
         cursorPos := imgui.GetCursorPos()
-        if imgui.Selectable(fmt.ctprintf("##%s", assets_list[i].name), i == selected_asset_idx, {.SelectOnNav}, imgui.Vec2{85, 70}) {
+        selected := i == selected_asset_idx
+        if imgui.Selectable(fmt.ctprintf("##%s", assets_list[i].name), selected, {.SelectOnNav, .AllowDoubleClick}, imgui.Vec2{85, 70}) {
             selected_asset_idx = i
             selected_asset = &assets_list[i]
             switch selected_asset.type {
@@ -1235,9 +1261,15 @@ draw_asset_items :: proc() {
                 entity_props = meta_load_entity(assets_list[i].path, true)
             case .Placed_entity:
             case .Script:
+            case .Map:
+            case .UI:
             case .Unknown:
                 //Do nothing atm
             }
+        }
+        if imgui.IsMouseDoubleClicked(imgui.MouseButton.Left) && assets_list[i].type == .Map && selected {
+            map_array: [TILE_ROWS][TILE_COLS]u16
+            tilemap_load_map(assets_list[i].path, &map_array)
         }
         ratio := f32(assets_list[i].texture.size.x) / f32(assets_list[i].texture.size.y)
         if ratio > 1.0 {
@@ -1284,17 +1316,6 @@ ui_show_welcome :: proc() {
     }
 }
 
-ui_draw_line :: proc(pos1: imgui.Vec2, pos2: imgui.Vec2) {
-    draw_list := imgui.GetWindowDrawList()
-    thickness: f32 = 2.0
-    imgui.DrawList_AddLine(draw_list, pos1, pos2, 0xFF4c4542, thickness)
-}
-
-ui_draw_rect :: proc(pos1: imgui.Vec2, pos2: imgui.Vec2) {
-    draw_list := imgui.GetForegroundDrawList()
-    thickness: f32 = 1.0
-    imgui.DrawList_AddRect(draw_list, pos1, pos2, 0xFF5555FF, 0, thickness)
-}
 
 @(private="file")
 new_project_name: [30]u8
@@ -1667,6 +1688,14 @@ build_asset_list :: proc(path: string) {
             asset.type = .Entity
             asset.path = strings.clone(info[i].fullpath)
             append(&assets_list, asset)
+        case ".map":
+            asset: Asset
+            asset.name = strings.clone_to_cstring(info[i].name)
+            asset.texture.texture = map_texture
+            asset.texture.size = {50, 50}
+            asset.type = .Map
+            asset.path = strings.clone(info[i].fullpath)
+            append(&assets_list, asset)
         }
     }
     if len(assets_list) > 0 && selected_asset == nil {
@@ -1835,18 +1864,20 @@ remove_asset :: proc(path: string, ext: string) {
 screen_to_position :: proc(screen_pos: imgui.Vec2) -> Vector2 {
     size := viewport.Size - imgui.Vec2{600, 270}
     pos := viewport.Pos + imgui.Vec2{300, 60}
-    final_pos := ((screen_pos - (pos + (size / 2))) / QUAD_SIZE)
+    cam := imgui.Vec2{render_get_camera().x * -1, render_get_camera().y}
+    final_pos := ((screen_pos - (pos + (size / 2)) + cam) / QUAD_SIZE)
     return {final_pos.x, final_pos.y * -1}
 }
 
 position_to_screen :: proc(pos: Vector2) -> imgui.Vec2 {
     size := viewport.Size - imgui.Vec2{600, 270}
     viewport_pos := viewport.Pos + imgui.Vec2{300, 60}
-    screen_pos := (imgui.Vec2{pos.x, pos.y * -1} * QUAD_SIZE) + (viewport_pos + (size / 2))
+    cam := imgui.Vec2{render_get_camera().x * -1, render_get_camera().y}
+    screen_pos := (imgui.Vec2{pos.x, pos.y * -1} * QUAD_SIZE) + (viewport_pos + (size / 2) + cam)
     return screen_pos
 }
 
-create_entity :: proc(type: string, pos: Vector2) {
+create_entity :: proc(type: string, pos: Vector2, flipX: bool, flipY: bool) {
     entity_meta: Entity_props
     for entity in full_assets_list.entities {
         if os.short_stem(entity.path) == type {
@@ -1873,6 +1904,8 @@ create_entity :: proc(type: string, pos: Vector2) {
     entity.position = pos
     entity.type = type
     entity.id = fmt.caprintf("##%s_%d", type, id)
+    entity.flipX = flipX
+    entity.flipY = flipY
     set_selected_entity(entity)
 }
 

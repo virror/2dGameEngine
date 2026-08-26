@@ -2,6 +2,8 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:strconv"
+import "core:strings"
 
 Tilemap :: struct {
     texture: u32,
@@ -132,14 +134,22 @@ tilemap_load_map :: proc(path: string, map_array: ^[TILE_ROWS][TILE_COLS]u16) {
     os.read(file, tmp[:])
     map_array^ = (cast(^[TILE_ROWS][TILE_COLS]u16)&tmp[0])^
     tile_array = map_array
-    tmp2: [ENTITY_COUNT * size_of(MapEntity)]u8
-    os.read(file, tmp2[:])
-    //map_ents := (cast(^[ENTITY_COUNT]MapEntity)&tmp2[0])^
-    /*for e in map_ents {
-        if e.type != "" {
-            create_entity(e.type, e.position)
+
+    entities = {}
+    data, _ := os.read_entire_file_from_file(file, context.temp_allocator)
+    str := string(data)
+    ents, _ := strings.split(str, "\n", context.temp_allocator)
+    for i := 0; i < len(ents); i += 1 {
+        props, _ := strings.split(ents[i], ":", context.temp_allocator)
+        if len(props) < 5 {
+            continue
         }
-    }*/
+        if props[0] != "" {
+            x, _ := strconv.parse_f32(props[1])
+            y, _ := strconv.parse_f32(props[2])
+            create_entity(strings.clone(props[0]), {x, y}, props[3] == "1", props[4] == "1")
+        }
+    }
     os.close(file)
     has_tilemap = true
 }
