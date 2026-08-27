@@ -654,16 +654,15 @@ ui_show_right :: proc() {
                             if imgui.BeginCombo("##StartScript", entity_props.start) {
                                 if entity_props.script_file4 != "None" {
                                     for func in full_assets_list.scripts[script_idx4].func {
-                                        if !strings.contains(string(func.signature), "(self: ^Entity)") {
-                                        continue 
-                                        }
-                                        is_selected := entity_props.start == func.name
-                                        if imgui.Selectable(func.name, is_selected) {
-                                            delete(entity_props.start)
-                                            entity_props.start = strings.clone_to_cstring(string(func.name))
-                                        }
-                                        if is_selected {
-                                            imgui.SetItemDefaultFocus()
+                                        if strings.contains(string(func.signature), "(self: ^Entity)") || func.name == "None" {
+                                            is_selected := entity_props.start == func.name
+                                            if imgui.Selectable(func.name, is_selected) {
+                                                delete(entity_props.start)
+                                                entity_props.start = strings.clone_to_cstring(string(func.name))
+                                            }
+                                            if is_selected {
+                                                imgui.SetItemDefaultFocus()
+                                            }
                                         }
                                     }
                                 }
@@ -675,16 +674,15 @@ ui_show_right :: proc() {
                             if imgui.BeginCombo("##UpdateScript", entity_props.update) {
                                 if entity_props.script_file1 != "None" {
                                     for func in full_assets_list.scripts[script_idx1].func {
-                                        if !strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") {
-                                        continue 
-                                        }
-                                        is_selected := entity_props.update == func.name
-                                        if imgui.Selectable(func.name, is_selected) {
-                                            delete(entity_props.update)
-                                            entity_props.update = strings.clone_to_cstring(string(func.name))
-                                        }
-                                        if is_selected {
-                                            imgui.SetItemDefaultFocus()
+                                        if strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") || func.name == "None" {
+                                            is_selected := entity_props.update == func.name
+                                            if imgui.Selectable(func.name, is_selected) {
+                                                delete(entity_props.update)
+                                                entity_props.update = strings.clone_to_cstring(string(func.name))
+                                            }
+                                            if is_selected {
+                                                imgui.SetItemDefaultFocus()
+                                            }
                                         }
                                     }
                                 }
@@ -696,16 +694,15 @@ ui_show_right :: proc() {
                             if imgui.BeginCombo("##On Collide EntityScript", entity_props.on_collide_entity) {
                                 if entity_props.script_file2 != "None" {
                                     for func in full_assets_list.scripts[script_idx2].func {
-                                        if !strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
-                                        continue
-                                        }
-                                        is_selected := entity_props.on_collide_entity == func.name
-                                        if imgui.Selectable(func.name, is_selected) {
-                                            delete(entity_props.on_collide_entity)
-                                            entity_props.on_collide_entity = strings.clone_to_cstring(string(func.name))
-                                        }
-                                        if is_selected {
-                                            imgui.SetItemDefaultFocus()
+                                        if strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") || func.name == "None" {
+                                            is_selected := entity_props.on_collide_entity == func.name
+                                            if imgui.Selectable(func.name, is_selected) {
+                                                delete(entity_props.on_collide_entity)
+                                                entity_props.on_collide_entity = strings.clone_to_cstring(string(func.name))
+                                            }
+                                            if is_selected {
+                                                imgui.SetItemDefaultFocus()
+                                            }
                                         }
                                     }
                                 }
@@ -717,16 +714,15 @@ ui_show_right :: proc() {
                             if imgui.BeginCombo("##On Collide TileScript", entity_props.on_collide_tile) {
                                 if entity_props.script_file3 != "None" {
                                     for func in full_assets_list.scripts[script_idx3].func {
-                                        if !strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") {
-                                        continue 
-                                        }
-                                        is_selected := entity_props.on_collide_tile == func.name
-                                        if imgui.Selectable(func.name, is_selected) {
-                                            delete(entity_props.on_collide_tile)
-                                            entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
-                                        }
-                                        if is_selected {
-                                            imgui.SetItemDefaultFocus()
+                                        if strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") || func.name == "None" {
+                                            is_selected := entity_props.on_collide_tile == func.name
+                                            if imgui.Selectable(func.name, is_selected) {
+                                                delete(entity_props.on_collide_tile)
+                                                entity_props.on_collide_tile = strings.clone_to_cstring(string(func.name))
+                                            }
+                                            if is_selected {
+                                                imgui.SetItemDefaultFocus()
+                                            }
                                         }
                                     }
                                 }
@@ -738,16 +734,15 @@ ui_show_right :: proc() {
                             if imgui.BeginCombo("##DestroyScript", entity_props.destroy) {
                                 if entity_props.script_file5 != "None" {
                                     for func in full_assets_list.scripts[script_idx5].func {
-                                        if !strings.contains(string(func.signature), "(self: ^Entity)") {
-                                        continue 
-                                        }
-                                        is_selected := entity_props.destroy == func.name
-                                        if imgui.Selectable(func.name, is_selected) {
-                                            delete(entity_props.destroy)
-                                            entity_props.destroy = strings.clone_to_cstring(string(func.name))
-                                        }
-                                        if is_selected {
-                                            imgui.SetItemDefaultFocus()
+                                        if strings.contains(string(func.signature), "(self: ^Entity)") || func.name == "None" {
+                                            is_selected := entity_props.destroy == func.name
+                                            if imgui.Selectable(func.name, is_selected) {
+                                                delete(entity_props.destroy)
+                                                entity_props.destroy = strings.clone_to_cstring(string(func.name))
+                                            }
+                                            if is_selected {
+                                                imgui.SetItemDefaultFocus()
+                                            }
                                         }
                                     }
                                 }
@@ -948,7 +943,7 @@ ui_edit_collider :: proc() {
 ui_script_dropdown :: proc(id: cstring, script_file: ^cstring, idx: ^int) {
     if imgui.BeginCombo(id, script_file^) {
         for i := 0; i < len(full_assets_list.scripts); i += 1 {
-            if len(full_assets_list.scripts[i].func) == 0 {
+            if len(full_assets_list.scripts[i].func) == 0 && full_assets_list.scripts[i].name != "None" {
                 continue
             }
             if full_assets_list.scripts[i].name == "" {
@@ -1550,6 +1545,8 @@ create_folder_tree :: proc() {
     root_folder.parent = nil
     clean_folder(&root_folder)
     clear(&root_folder.children)
+    item: Asset_list_script = {"", strings.clone_to_cstring("None"), nil}
+    append(&full_assets_list.scripts, item)
     scan_folder(project_path, &root_folder)
 }
 
