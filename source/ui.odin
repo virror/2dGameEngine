@@ -6,6 +6,8 @@ import "core:os"
 import "core:strings"
 import "core:math"
 import "core:time"
+import "core:strconv"
+import "core:mem"
 import sdl "vendor:sdl3"
 import "../../imgui"
 import "../../imgui/imgui_impl_sdl3"
@@ -162,6 +164,7 @@ selected_entity: ^Entity
 dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
 dummy_no_asset: Asset = {"", {0, {0, 0}}, .Unknown, ""}
 tilemap_sprite: cstring = ""
+tags: [dynamic][30]u8
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -170,6 +173,8 @@ ui_init :: proc(window_: ^sdl.Window) {
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
     map_texture, _ = texture_create(#load("../sprites/Map.png"))
+    append(&tags, [30]u8{})
+    copy(tags[0][:], "none")
 }
 
 ui_cleanup :: proc() {
@@ -243,6 +248,7 @@ ui_cleanup :: proc() {
     delete(entity_props.on_collide_entity)
     delete(entity_props.on_collide_tile)
     delete(entity_props.destroy)
+    delete(tags)
     mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
     mix.DestroyTrack(loaded_track)
 }
@@ -351,7 +357,7 @@ ui_show_left :: proc() {
     if imgui.Begin("LeftPanel", nil, window_flags) {
         imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("Entities") {
                 if imgui.BeginChild("EntitiesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
@@ -369,7 +375,7 @@ ui_show_left :: proc() {
                 }
                 imgui.EndTabItem()
             }
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("UI") {
                 if imgui.BeginChild("UIChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
@@ -418,7 +424,7 @@ ui_show_right :: proc() {
     if imgui.Begin("RightPanel", nil, window_flags) {
         imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("Properties") {
                 if imgui.BeginChild("PropertiesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if selected_asset != nil && project_loaded {
@@ -604,6 +610,23 @@ ui_show_right :: proc() {
                                     show_edit_collider = true
                                 }
                             }
+                            imgui.Text("Tag:")
+                            if entity_props.tag == "" {
+                                entity_props.tag = strings.clone_to_cstring("none")
+                            }
+                            if imgui.BeginCombo("##Tag", entity_props.tag) {
+                                for i := 0; i < len(tags); i += 1 {
+                                    is_selected := entity_props.tag == cstring(&tags[i][0])
+                                    if imgui.Selectable(cstring(&tags[i][0]), is_selected) {
+                                        delete(entity_props.tag)
+                                        entity_props.tag = strings.clone_to_cstring(string(cstring(&tags[i][0])))
+                                    }
+                                    if is_selected {
+                                        imgui.SetItemDefaultFocus()
+                                    }
+                                }
+                                imgui.EndCombo()
+                            }
                             imgui.Text("Animate on start:")
                             imgui.SetCursorPos(imgui.Vec2{135, imgui.GetCursorPos().y - 25})
                             imgui.Checkbox("##AnimateOnStart", &entity_props.animate_on_start)
@@ -772,7 +795,7 @@ ui_show_right :: proc() {
                 }
                 imgui.EndTabItem()
             }
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("Tilemaps") {
                 if imgui.BeginChild("TilesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
@@ -795,6 +818,35 @@ ui_show_right :: proc() {
                                 }
                             }
                             imgui.EndCombo()
+                        }
+                    }
+                    imgui.EndChild()
+                }
+                imgui.EndTabItem()
+            }
+            imgui.SetNextItemWidth(85)
+            if imgui.BeginTabItem("Tags") {
+                if imgui.BeginChild("TilesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                    if project_loaded {
+                        imgui.Text("Tags:")
+                        for i := 0; i < len(tags); i += 1 {
+                            if i != 0 {
+                                imgui.InputText(fmt.ctprintf("##tag%d", i), cstring(&tags[i][0]), 30)
+                                imgui.SameLine(200, 0)
+                                if imgui.Button(fmt.ctprintf("X##tag%d", i), imgui.Vec2{25, 25}) {
+                                    ordered_remove(&tags, i)
+                                }
+                            } else {
+                                imgui.BeginDisabled(true)
+                                imgui.InputText(fmt.ctprintf("##tag%d", i), cstring(&tags[i][0]), 30)
+                                imgui.EndDisabled()
+                            }
+                        }
+                        if imgui.Button("Add Tag", imgui.Vec2{100, 25}) {
+                            append(&tags, [30]u8{})
+                        }
+                        if imgui.Button("Save", imgui.Vec2{100, 25}) {
+                            project_write()
                         }
                     }
                     imgui.EndChild()
@@ -1041,7 +1093,7 @@ ui_show_bottom :: proc() {
     if imgui.Begin("BottomPanel", nil, window_flags) {
         imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("AssetsTabBar") {
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("Assets") {
                 if imgui.BeginChild("AssetsChild", imgui.Vec2{285, 160}) {
                     if project_loaded {
@@ -1073,7 +1125,7 @@ ui_show_bottom :: proc() {
                 }
                 imgui.EndTabItem()
             }
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             flag :imgui.TabItemFlags = {}
             if set_console_focus {
                 flag = {imgui.TabItemFlags.SetSelected}
@@ -1112,7 +1164,7 @@ ui_show_middle :: proc() {
     if imgui.Begin("MiddlePanel", nil, window_flags) {
         imgui.SetCursorPosY(5)
         if imgui.BeginTabBar("EditorTabBar") {
-            imgui.SetNextItemWidth(90)
+            imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("Editor") {
                 ref: imgui.TextureRef
                 ref._TexID = (imgui.TextureID(uintptr(rt_texture.texture)))
@@ -1370,7 +1422,7 @@ ui_show_new_project :: proc() {
                     get_project_name()
                     file_path := fmt.tprintf("%s\\%s.2de", project_path, project_name)
                     fd, _ := os.open(file_path, os.O_WRONLY | os.O_CREATE)
-                    os.write_string(fd, VERSION)
+                    os.write_string(fd, fmt.tprintf("%f", VERSION))
                     os.close(fd)
                     
                     create_folder_tree()
@@ -1444,6 +1496,7 @@ open_project :: proc(path: string) {
     //show_working = true
     project_path = os.dir(path)
     get_project_name()
+    project_load()
     create_folder_tree()
     selected_node = &root_folder
 
@@ -1808,6 +1861,7 @@ build_assets :: proc() {
         }
         os.write_string(fd, "\tself.physics.collider = {\n\t\t")
         os.write_string(fd, fmt.tprintf("bottom = %f,\n\t\ttop = %f,\n\t\tleft = %f,\n\t\tright = %f,\n\t}}\n", f32(meta.collider.x) / QUAD_SIZE, f32(meta.collider.y) / QUAD_SIZE, f32(meta.collider.z) / QUAD_SIZE, f32(meta.collider.w) / QUAD_SIZE))
+        os.write_string(fd, fmt.tprintf("\tself.tag = .%s\n", meta.tag))
         os.write_string(fd, fmt.tprintf("\tself.physics.mass = %f\n", meta.mass))
         os.write_string(fd, fmt.tprintf("\tself.physics.friction = %f\n", meta.friction))
         os.write_string(fd, fmt.tprintf("\tself.physics.bounciness = %f\n", meta.bounciness))
@@ -1819,6 +1873,12 @@ build_assets :: proc() {
         }
         os.write_string(fd, "}\n\n")
     }
+
+    os.write_string(fd, "EntityTag :: enum {\n")
+    for i := 0; i < len(tags); i += 1 {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", cstring(&tags[i][0])))
+    }
+    os.write_string(fd, "}\n\n")
 
     os.write_string(fd, fmt.tprintf("TILEMAP_COUNT :: %d\n", tilemaps_count))
     os.write_string(fd, fmt.tprintf("SPRITE_COUNT :: %d\n", sprites_count))
@@ -1918,4 +1978,46 @@ clear_selected_entity :: proc() {
     selected_asset = &dummy_no_asset
     entity := Entity{}
     selected_entity = &entity
+}
+
+project_write :: proc() {
+    path := fmt.tprintf("%s\\%s.2de", project_path, project_name)
+    fp, _ := os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+    os.write_string(fp, fmt.tprintf("%f\n", VERSION))
+    for i: int = 1; i < len(tags); i += 1 {
+        os.write_string(fp, string(cstring(&tags[i][0])))
+        os.write_string(fp, "\n")
+    }
+    os.write_string(fp, "---")
+    os.close(fp)
+}
+
+project_load :: proc() {
+    path := fmt.tprintf("%s\\%s.2de", project_path, project_name)
+    fp, _ := os.open(path, os.O_RDONLY)
+    data, _ := os.read_entire_file(fp, context.temp_allocator)
+    it := string(data)
+    lines, _ := strings.split(it, "\n", context.temp_allocator)
+    version, _ := strconv.parse_f32(lines[0])
+    if version < VERSION {
+        fmt.println("Project version is older than editor version.")
+    } else if version > VERSION {
+        fmt.println("Project version is newer than editor version.")
+    } else {
+        fmt.println("Project version matches editor version.")
+    }
+
+    for i :int= 1; i < len(lines); i += 1 {
+        line := lines[i]
+        if line == "---" {
+            break
+        }
+        if line == "" {
+            continue
+        }
+        dst: [30]u8
+        mem.copy(&dst[0], rawptr(raw_data(line)), min(len(line), len(dst)))
+        append(&tags, transmute([30]u8)dst)
+    }
+    os.close(fp)
 }
