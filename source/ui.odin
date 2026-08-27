@@ -173,8 +173,6 @@ ui_init :: proc(window_: ^sdl.Window) {
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
     map_texture, _ = texture_create(#load("../sprites/Map.png"))
-    append(&tags, [30]u8{})
-    copy(tags[0][:], "none")
 }
 
 ui_cleanup :: proc() {
@@ -1993,6 +1991,10 @@ project_write :: proc() {
 }
 
 project_load :: proc() {
+    tags = {}
+    append(&tags, [30]u8{})
+    copy(tags[0][:], "none")
+
     path := fmt.tprintf("%s\\%s.2de", project_path, project_name)
     fp, _ := os.open(path, os.O_RDONLY)
     data, _ := os.read_entire_file(fp, context.temp_allocator)
