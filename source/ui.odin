@@ -361,7 +361,11 @@ ui_show_left :: proc() {
                     if project_loaded {
                         for i := 0; i < len(entities); i+=1 {
                             if entities[i].type != "" {
-                                if imgui.Selectable(entities[i].id, entities[i].id == selected_entity.id, {.SelectOnNav}, imgui.Vec2{270, 15}) {
+                                selected := false
+                                if selected_entity != nil {
+                                    selected = entities[i].id == selected_entity.id
+                                }
+                                if imgui.Selectable(entities[i].id, selected, {.SelectOnNav}, imgui.Vec2{270, 15}) {
                                     set_selected_entity(&entities[i])
                                 }
                                 imgui.SetCursorPos(imgui.Vec2{5, imgui.GetCursorPos().y - 20})
@@ -1970,9 +1974,8 @@ set_selected_entity :: proc(entity: ^Entity) {
 }
 
 clear_selected_entity :: proc() {
-    selected_asset = &dummy_no_asset
-    entity := Entity{}
-    selected_entity = &entity
+    selected_asset = nil
+    selected_entity = nil
 }
 
 project_write :: proc() {
