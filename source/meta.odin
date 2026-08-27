@@ -25,6 +25,7 @@ Audio_props :: struct {
 Entity_props :: struct {
     sprite: cstring,
     collider: [4]i32,
+    tag: cstring,
     mass: f32,
     friction: f32,
     bounciness: f32,
@@ -187,6 +188,7 @@ meta_create_entity :: proc(path: string) {
         ini.write_pair(writer, "on_collide_tile", "None")
         ini.write_pair(writer, "destroy", "None")
         ini.write_pair(writer, "animate_on_start", false)
+        ini.write_pair(writer, "tag", "none")
     }
 }
 
@@ -216,6 +218,7 @@ meta_save_entity :: proc(path: string, props: Entity_props) {
     ini.write_pair(writer, "on_collide_tile", props.on_collide_tile)
     ini.write_pair(writer, "destroy", props.destroy)
     ini.write_pair(writer, "animate_on_start", props.animate_on_start)
+    ini.write_pair(writer, "tag", props.tag)
 }
 
 meta_load_entity :: proc(path: string, delete_props: bool) -> Entity_props {
@@ -261,6 +264,7 @@ meta_load_entity :: proc(path: string, delete_props: bool) -> Entity_props {
     props.on_collide_tile = strings.clone_to_cstring(ini_map[""]["on_collide_tile"])
     props.destroy = strings.clone_to_cstring(ini_map[""]["destroy"])
     props.animate_on_start, _ = strconv.parse_bool(ini_map[""]["animate_on_start"])
+    props.tag = strings.clone_to_cstring(ini_map[""]["tag"])
     //fmt.println("lm5")
     for i := 0; i < len(full_assets_list.scripts); i += 1 {
         if props.script_file1 == full_assets_list.scripts[i].name {
