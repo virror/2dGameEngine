@@ -1,5 +1,5 @@
-C:/VulkanSDK/1.4.350.0/Bin/glslc.exe E:\Source\8h_game\shaders\ui.vert -o E:\Source\8h_game\shaders\ui.spv.vert
-C:/VulkanSDK/1.4.350.0/Bin/glslc.exe E:\Source\8h_game\shaders\ui.frag -o E:\Source\8h_game\shaders\ui.spv.frag
-C:/VulkanSDK/1.4.350.0/Bin/glslc.exe E:\Source\8h_game\shaders\editor.vert -o E:\Source\8h_game\shaders\editor.spv.vert
-C:/VulkanSDK/1.4.350.0/Bin/glslc.exe E:\Source\8h_game\shaders\editor.frag -o E:\Source\8h_game\shaders\editor.spv.frag
+C:/VulkanSDK/1.4.304.1/Bin/glslc.exe D:\Source\2dGameEngine\shaders\ui.vert -o D:\Source\2dGameEngine\shaders\ui.spv.vert
+C:/VulkanSDK/1.4.304.1/Bin/glslc.exe D:\Source\2dGameEngine\shaders\ui.frag -o D:\Source\2dGameEngine\shaders\ui.spv.frag
+C:/VulkanSDK/1.4.304.1/Bin/glslc.exe D:\Source\2dGameEngine\shaders\shader.vert -o D:\Source\2dGameEngine\shaders\shader.spv.vert
+C:/VulkanSDK/1.4.304.1/Bin/glslc.exe D:\Source\2dGameEngine\shaders\shader.frag -o D:\Source\2dGameEngine\shaders\shader.spv.frag
 pause

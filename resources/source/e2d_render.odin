@@ -31,11 +31,13 @@ Ui_frag_uniform :: struct {
     tex_size: Vector2,
 }
 
-Ui_vert_uniform :: struct #packed {
+Ui_vert_uniform :: struct {
     model: matrix[4, 4]f32,
     resolution: Vector2,
     cameraPos: Vector2,
     flip: Vector2,
+    virtual_height: f32,
+    _padding: f32,
 }
 
 Light_frag_uniform :: struct {
@@ -351,7 +353,7 @@ render_quad :: proc(data: Render_data) {
 
         model_matrix := linalg.matrix4_scale_f32({data.size.x, data.size.y, 0})
         model_matrix = linalg.matrix4_translate_f32({data.position.x, data.position.y, 0}) * model_matrix
-        ui_vert_uniform :Ui_vert_uniform= {model_matrix, resolution, camera_position, data.flip}
+        ui_vert_uniform :Ui_vert_uniform= {model_matrix, resolution, camera_position, data.flip, VIRTUAL_HEIGHT, 0}
         sdl.PushGPUVertexUniformData(cmd_buf, 0, &ui_vert_uniform, size_of(ui_vert_uniform))
         
         sdl.BindGPUFragmentSamplers(render_pass, 0, &textures[data.texture], 1)
