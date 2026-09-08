@@ -1223,6 +1223,10 @@ ui_show_middle :: proc() {
                     clear_selected_entity()
                 }
             }
+            wheel := imgui.GetIO().MouseWheel
+            if imgui.IsWindowHovered() && wheel != 0.0 {
+                virtual_height -= f32(wheel * 15)
+            }
         }
         imgui.EndTabBar()
     }
