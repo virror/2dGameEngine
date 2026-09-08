@@ -77,6 +77,13 @@ Asset_list_item :: struct {
 }
 
 @(private="file")
+Asset_list_texture :: struct {
+    path: string,
+    name: cstring,
+    type: Texture_type,
+}
+
+@(private="file")
 Script_content :: struct {
     name: cstring,
     signature: cstring,
@@ -91,7 +98,7 @@ Asset_list_script :: struct {
 
 @(private="file")
 Asset_List :: struct {
-    textures: [dynamic]Asset_list_item,
+    textures: [dynamic]Asset_list_texture,
     scripts: [dynamic]Asset_list_script,
     audio: [dynamic]string,
     entities: [dynamic]Asset_list_item,
@@ -578,6 +585,9 @@ ui_show_right :: proc() {
                             }
                             if imgui.BeginCombo("##Sprite", entity_type_pre) {
                                 for i := 0; i < len(full_assets_list.textures); i += 1 {
+                                    if full_assets_list.textures[i].type != .Sprite {
+                                        continue
+                                    }
                                     is_selected := entity_props.sprite == full_assets_list.textures[i].name
                                     if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
                                         delete(entity_props.sprite)
@@ -802,6 +812,9 @@ ui_show_right :: proc() {
                         }
                         if imgui.BeginCombo("##Tilemap", tilemap_sprite) {
                             for i := 0; i < len(full_assets_list.textures); i += 1 {
+                                if full_assets_list.textures[i].type != .Tilemap {
+                                    continue
+                                }
                                 is_selected := tilemap_sprite == full_assets_list.textures[i].name
                                 if imgui.Selectable(full_assets_list.textures[i].name, is_selected) {
                                     delete(tilemap_sprite)
@@ -1582,9 +1595,13 @@ scan_folder :: proc(path: string, node: ^Folder_node) {
             ext := os.ext(info[i].name)
             switch ext {
             case ".png":
-                meta_create_sprite(info[i].fullpath)
+                created := meta_create_sprite(info[i].fullpath)
                 name := strings.clone_to_cstring(os.short_stem(info[i].fullpath))
-                item: Asset_list_item= {strings.clone(info[i].fullpath), name}
+                texture_type := Texture_type.Sprite
+                if !created {
+                    texture_type = meta_load_sprite(info[i].fullpath).type
+                }
+                item: Asset_list_texture= {strings.clone(info[i].fullpath), name, texture_type}
                 append(&full_assets_list.textures, item)
             case ".wav":
                 meta_create_audio(info[i].fullpath)
@@ -1896,7 +1913,7 @@ build_assets :: proc() {
 add_asset :: proc(path: string, ext: string) {
     switch ext {
     case ".png":    
-        append(&full_assets_list.textures, Asset_list_item{strings.clone(path), strings.clone_to_cstring(os.short_stem(path))})
+        append(&full_assets_list.textures, Asset_list_texture{strings.clone(path), strings.clone_to_cstring(os.short_stem(path)), .Sprite})
     case ".wav":
         append(&full_assets_list.audio, strings.clone(path))
     case ".odin":

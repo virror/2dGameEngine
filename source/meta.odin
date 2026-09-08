@@ -44,7 +44,7 @@ Entity_props :: struct {
     animate_on_start: bool,
 }
 
-meta_create_sprite :: proc(asset: string) {
+meta_create_sprite :: proc(asset: string) -> bool {
     path := fmt.tprintf("%s.meta", asset)
     if !os.exists(path) {
         fd, err := os.create(path)
@@ -57,7 +57,9 @@ meta_create_sprite :: proc(asset: string) {
         ini.write_pair(writer, "type", int(Texture_type.Sprite))
         ini.write_pair(writer, "frames", [2]i32{1, 1})
         ini.write_pair(writer, "slice9", [4]i32{0, 0, 0, 0})
+        return true
     }
+    return false
 }
 
 meta_save_sprite :: proc(asset: string, props: Sprite_props) {
