@@ -1161,6 +1161,18 @@ ui_show_top :: proc() {
         }
         imgui.SetItemTooltip("Open project")
         imgui.SameLine(120, 0)
+        if imgui.ImageButton("Build", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.666, 0.666}, imgui.Vec2{1, 1}) {
+            if project_loaded {
+                console_clear()
+                start := sdl.GetPerformanceCounter()
+                build_assets()
+                end := sdl.GetPerformanceCounter()
+                elapsed := f32(end - start) / f32(sdl.GetPerformanceFrequency())
+                console_add_line(fmt.aprintf("Build completed in %.3f seconds.", elapsed))
+            }
+        }
+        imgui.SetItemTooltip("Build project")
+        imgui.SameLine(165, 0)
         if stdout_args != nil {
             if imgui.ImageButton("Stop", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
                 if project_loaded {
