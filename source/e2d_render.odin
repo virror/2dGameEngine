@@ -98,6 +98,7 @@ light_frag_uniform: Light_frag_uniform
 @(private="file")
 render_list: [ENTITY_COUNT]^Entity
 virtual_height := f32(VIRTUAL_HEIGHT)
+zoomed_height := f32(VIRTUAL_HEIGHT)
 
 default_context: runtime.Context
 
@@ -355,15 +356,16 @@ render_quad :: proc(data: Render_data) {
     if renderer.render_pass != nil {
         ui_frag_uniform :Ui_frag_uniform= {data.scale, data.offset, data.color, data.slice9, data.size, data.tex_size}
         sdl.PushGPUFragmentUniformData(renderer.cmd_buf, 0, &ui_frag_uniform, size_of(ui_frag_uniform))
-        if active_shader == .game_shader {
-            sdl.PushGPUFragmentUniformData(renderer.cmd_buf, 1, &light_frag_uniform, size_of(light_frag_uniform))
-        }
-
         model_matrix := linalg.matrix4_scale_f32({data.size.x, data.size.y, 0})
         model_matrix = linalg.matrix4_translate_f32({data.position.x, data.position.y, 0}) * model_matrix
         ui_vert_uniform :Ui_vert_uniform= {model_matrix, resolution, camera_position, data.flip, virtual_height, 0}
+
+        if active_shader == .game_shader {
+            sdl.PushGPUFragmentUniformData(renderer.cmd_buf, 1, &light_frag_uniform, size_of(light_frag_uniform))
+            ui_vert_uniform.virtual_height = zoomed_height
+        }
+
         sdl.PushGPUVertexUniformData(renderer.cmd_buf, 0, &ui_vert_uniform, size_of(ui_vert_uniform))
-        
         sdl.BindGPUFragmentSamplers(renderer.render_pass, 0, &textures[data.texture], 1)
         sdl.DrawGPUIndexedPrimitives(renderer.render_pass, 6, 1, 0, 0, 0)
     }

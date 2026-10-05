@@ -56,6 +56,14 @@ Collider_editor :: struct {
     frameY: i32,
 }
 
+UI_node :: struct {
+    name: cstring,
+    children: [dynamic]UI_node,
+    parent: ^UI_node,
+    selected: bool,
+    element: ^Ui_element,
+}
+
 @(private="file")
 Folder_node :: struct {
     name: cstring,
@@ -169,9 +177,12 @@ collider_editor: Collider_editor = {-1, Vector2{0, 0}, Vector2{0, 0}, 0, 0}
 sprite_map: map[string]Sprite
 selected_entity: ^Entity
 dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
+dummy_ui_asset: Asset = {"", {0, {0, 0}}, .UI, ""}
 dummy_no_asset: Asset = {"", {0, {0, 0}}, .Unknown, ""}
 tilemap_sprite: cstring = ""
 tags: [dynamic][30]u8
+ui_root: UI_node = {"Root", [dynamic]UI_node{}, nil, false, nil}
+selected_ui_node: ^UI_node
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -180,6 +191,10 @@ ui_init :: proc(window_: ^sdl.Window) {
     audio_texture, _ = texture_create(#load("../sprites/Audio.png"))
     entity_texture, _ = texture_create(#load("../sprites/Entity.png"))
     map_texture, _ = texture_create(#load("../sprites/Map.png"))
+    sprites[0] = sprite_create(#load("../sprites/White.png"), {1, 1})
+    sprites[1] = sprite_create(#load("../sprites/Button.png"), {1, 1})
+    sprites[1].slice9 = {7, 7, 7, 7}
+    fonts[0] = font_create(#load("../sprites/Bitmap_font.png"), {18, 6})
 }
 
 ui_cleanup :: proc() {
@@ -386,13 +401,57 @@ ui_show_left :: proc() {
             }
             imgui.SetNextItemWidth(85)
             if imgui.BeginTabItem("UI") {
-                if imgui.BeginChild("UIChild", imgui.Vec2{285, viewport.Size.y - 260}) {
-                    if project_loaded {
-                        
+                if project_loaded {
+                    if imgui.BeginChild("UIChild", imgui.Vec2{285, viewport.Size.y - 260}) {
+                        for &node in ui_root.children {
+                            draw_ui_tree(&node)
+                        }
+                        imgui.EndChild()
                     }
-                    imgui.EndChild()
+                    imgui.EndTabItem()
+                    if imgui.BeginPopupContextItem(nil, imgui.PopupFlags_MouseButtonRight) {
+                        if imgui.Selectable("Create container") {
+                            element := ui_container({0, 0}, .middle_center)
+                            new_node :UI_node = {"Container", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+                        }
+                        if imgui.Selectable("Create text") {
+                            element := ui_text({0, 0}, 20, "Test", .middle_center)
+                            new_node :UI_node = {"Text", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+                        }
+                        if imgui.Selectable("Create button") {
+                            element := ui_button({0, 0}, {100, 40}, nil, .middle_center)
+                            new_node :UI_node = {"Button", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+                        }
+                        if imgui.Selectable("Create image") {
+                            element := ui_image({0, 0}, {100, 40}, 0, .middle_center)
+                            new_node :UI_node = {"Image", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+                        }
+                        if imgui.Selectable("Create input") {
+                            element := ui_input({0, 0}, {100, 30}, .middle_center)
+                            new_node :UI_node = {"Input", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+
+                            element._input = ui_text({2, 0}, 20, "apa", .middle_left, element)
+                            new_node2 :UI_node = {"Text", [dynamic]UI_node{}, &ui_root, false, element._input}
+                            append(&new_node.children, new_node2)
+                            //fmt.println(new_node)
+                        }
+                        if imgui.Selectable("Create checkbox") {
+                            element := ui_checkbox({0, 0}, 20, .middle_center)
+                            new_node :UI_node = {"Checkbox", [dynamic]UI_node{}, &ui_root, false, element}
+                            append(&ui_root.children, new_node)
+
+                            element._input = ui_text({0, 2}, 20, " ", .middle_left, element)
+                            new_node2 :UI_node = {"Text", [dynamic]UI_node{}, &ui_root, false, element._input}
+                            append(&ui_root.children, new_node2)
+                        }
+                        imgui.EndPopup()
+                    }
                 }
-                imgui.EndTabItem()
             }
         }
         imgui.EndTabBar()
@@ -795,8 +854,79 @@ ui_show_right :: proc() {
                         case .Script:
                         case .Map:
                         case .UI:
+                            imgui.Text(selected_ui_node.name)
+                            imgui.Spacing()
+                            imgui.Text("Position:")
+                            imgui.Text("X:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.InputFloat("##X", &selected_ui_node.element.position.x)
+                            imgui.Text("Y:")
+                            imgui.SetCursorPos(imgui.Vec2{20, imgui.GetCursorPos().y - 25})
+                            imgui.SetNextItemWidth(100)
+                            imgui.InputFloat("##PosY", &selected_ui_node.element.position.y)
+                            imgui.Spacing()
+                            imgui.Text("Disabled:")
+                            imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                            imgui.Checkbox("##Disabled", &selected_ui_node.element.disabled)
+                            //Anchor
+                            
+                            if selected_ui_node.element.type != .container && selected_ui_node.element.type != .text {
+                                imgui.Spacing()
+                                imgui.Text("Size:")
+                                imgui.Text("Width:")
+                                imgui.SetCursorPos(imgui.Vec2{50, imgui.GetCursorPos().y - 25})
+                                imgui.SetNextItemWidth(100)
+                                imgui.InputFloat("##Width", &selected_ui_node.element.size.x)
+                                imgui.Text("Height:")
+                                imgui.SetCursorPos(imgui.Vec2{50, imgui.GetCursorPos().y - 25})
+                                imgui.SetNextItemWidth(100)
+                                imgui.InputFloat("##Height", &selected_ui_node.element.size.y)
+                            }
+                            if selected_ui_node.element.type != .container {
+                                //Sprite
+                                imgui.Spacing()
+                                imgui.Text("Color:")
+                                imgui.ColorPicker4("##Color", (cast(^[4]f32)(&selected_ui_node.element.color)))
+                            }
+                            switch selected_ui_node.element.type {
+                            case .button:
+                                //on_mouse_click
+                            case .input:
+                                imgui.InputText("##Text", strings.clone_to_cstring(selected_ui_node.element._input.text), 30)
+                                //on_input_submit
+                            case .checkbox:
+                                imgui.Spacing()
+                                imgui.Text("Value:")
+                                imgui.SetCursorPos(imgui.Vec2{95, imgui.GetCursorPos().y - 25})
+                                if imgui.Checkbox("##Value", &selected_ui_node.element.value) {
+                                    if selected_ui_node.element.value {
+                                        selected_ui_node.element._input.text = "x"
+                                    } else {
+                                        selected_ui_node.element._input.text = " "
+                                    }
+                                }
+                                //on_check_change
+                            case .text:
+                                imgui.Spacing()
+                                imgui.Text("Size:")
+                                imgui.SetCursorPos(imgui.Vec2{50, imgui.GetCursorPos().y - 25})
+                                imgui.SetNextItemWidth(100)
+                                if imgui.InputFloat("##Size", &selected_ui_node.element.size.x) {
+                                    selected_ui_node.element.size.y = fonts[0].ratio * selected_ui_node.element.size.x
+                                }
+                            case .image, .container:
+                                //No extra stuff
+                            }
                         case .Unknown:
                         }
+                        /*
+                        on_mouse_enter: proc(element: ^Ui_element),
+                        on_mouse_leave: proc(element: ^Ui_element),
+                        on_mouse_move: proc(element: ^Ui_element, position: Vector2),
+                        on_mouse_down: proc(element: ^Ui_element, button: map[Mouse_button]bool),
+                        on_mouse_up: proc(element: ^Ui_element, button: map[Mouse_button]bool),
+                        */
                     }
                     imgui.EndChild()
                 }
@@ -1262,6 +1392,54 @@ get_folder_path :: proc(node: ^Folder_node) -> string {
     }
     parent_path := get_folder_path(node.parent)
     return fmt.tprintf("%s\\%s", parent_path, node.name)
+}
+
+draw_ui_tree :: proc(node: ^UI_node) {
+    flags := imgui.TreeNodeFlags{.OpenOnArrow, .SpanLabelWidth, .NavLeftJumpsToParent}
+    if len(node.children) == 0 {
+        flags += {imgui.TreeNodeFlags.Leaf}
+    }
+    if node.selected {
+        flags += {imgui.TreeNodeFlags.Selected}
+    }
+    disabled := (node.element.parent != nil && node.element.parent.disabled) || node.element.disabled
+    if disabled {
+        imgui.PushStyleColor(.Text, 0x80FFFFFF)
+    }
+    is_open := imgui.TreeNodeEx(node.name, flags)
+    if disabled {
+        imgui.PopStyleColor()
+    }
+    arrow_pressed := imgui.IsKeyPressed(imgui.Key.DownArrow) || imgui.IsKeyPressed(imgui.Key.UpArrow) || imgui.IsKeyPressed(imgui.Key.LeftArrow)
+    if imgui.IsItemClicked(.Left) || (imgui.IsItemFocused() && arrow_pressed) {
+        if selected_ui_node != nil {
+            selected_ui_node.selected = false
+        }
+        node.selected = true
+        set_selected_ui_node(node)
+    }
+    if imgui.BeginDragDropSource(nil) {
+        node_ptr := node
+        imgui.SetDragDropPayload("UI_NODE", &node_ptr, size_of(node_ptr))
+        idx := mem.ptr_sub(node, &node.parent.children[0])
+        ordered_remove(&node.parent.children, idx)
+        imgui.EndDragDropSource()
+    }
+    if imgui.BeginDragDropTarget() {
+        if payload := imgui.AcceptDragDropPayload("UI_NODE"); payload != nil {
+            new_node := (cast(^^UI_node)payload.Data)^
+            new_node.parent = node
+            append(&node.children, new_node^)
+            new_node.element.parent = node.element
+        }
+        imgui.EndDragDropTarget()
+    }
+    if is_open {
+        for i := 0; i < len(node.children); i += 1 {
+            draw_ui_tree(&node.children[i])
+        }
+        imgui.TreePop()
+    }
 }
 
 draw_folder_tree :: proc(node: ^Folder_node) {
@@ -1992,11 +2170,18 @@ create_entity :: proc(type: string, pos: Vector2, flipX: bool, flipY: bool) {
 set_selected_entity :: proc(entity: ^Entity) {
     selected_entity = entity
     selected_asset = &dummy_entity_asset
+    selected_ui_node = nil
 }
 
 clear_selected_entity :: proc() {
     selected_asset = nil
     selected_entity = nil
+}
+
+set_selected_ui_node :: proc(node: ^UI_node) {
+    selected_entity = nil
+    selected_ui_node = node
+    selected_asset = &dummy_ui_asset
 }
 
 project_write :: proc() {

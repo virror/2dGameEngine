@@ -32,7 +32,9 @@ render_all :: proc(io: ^imgui.IO) {
     render_sort_and_render()
 
     render_set_shader(.ui_shader)
-    ui_render()
+    old_cam := render_get_camera()
+    render_ui(&ui_root)
+    render_set_camera(old_cam)
 
     if (renderer.render_pass != nil) {
         sdl.EndGPURenderPass(renderer.render_pass)
@@ -71,6 +73,13 @@ render_all :: proc(io: ^imgui.IO) {
 
     if !sdl.SubmitGPUCommandBuffer(renderer.cmd_buf) {
         panic("Cant submit GPU cmd buffer")
+    }
+}
+
+render_ui :: proc(node: ^UI_node) {
+    for &node2 in node.children {
+        ui_render(&node2)
+        render_ui(&node2)
     }
 }
 
