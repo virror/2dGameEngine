@@ -671,7 +671,6 @@ ui_show_right :: proc() {
                                         props := meta_load_sprite(tex.path)
                                         collider_editor.frames = {f32(props.frames.x), f32(props.frames.y)}
                                         collider_editor.texture, collider_editor.size = i32(texture), size
-                                        entity_props.collider = {0, i32(size.y * (1 / collider_editor.frames.y)), 0, i32(size.x * (1 / collider_editor.frames.x))}
                                         collider_editor.frameX = 0
                                         collider_editor.frameY = 0
                                         break
@@ -1022,8 +1021,8 @@ ui_edit_collider :: proc() {
     if imgui.BeginPopupModal("Edit Collider", nil, window_flags) {
         imgui.SetCursorPos(imgui.Vec2{img_offset_x, 0})
         imgui.Image(texture_to_image(u32(collider_editor.texture)), imgui.Vec2{x_size, y_size}, tex_offset1, tex_offset2)
-        pos1 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.z) * mul, f32(entity_props.collider.x) * mul}
-        pos2 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.w) * mul, f32(entity_props.collider.y) * mul}
+        pos1 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.z) * mul, (collider_editor.size.y / collider_editor.frames.y - f32(entity_props.collider.x)) * mul}
+        pos2 := imgui.GetWindowPos() + imgui.Vec2{f32(entity_props.collider.w) * mul, (collider_editor.size.y / collider_editor.frames.y - f32(entity_props.collider.y)) * mul}
         pos1.x += img_offset_x
         pos2.x += img_offset_x
         draw_list := imgui.GetForegroundDrawList()
@@ -1066,11 +1065,11 @@ ui_edit_collider :: proc() {
         imgui.Text("Top:")
         imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
         imgui.SetNextItemWidth(120)
-        imgui.InputInt("##ColliderX", &entity_props.collider.x)
+        imgui.InputInt("##ColliderY", &entity_props.collider.y)
         imgui.Text("Bottom:")
         imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
         imgui.SetNextItemWidth(120)
-        imgui.InputInt("##ColliderY", &entity_props.collider.y)
+        imgui.InputInt("##ColliderX", &entity_props.collider.x)
         imgui.Text("Left:")
         imgui.SetCursorPos(imgui.Vec2{70, imgui.GetCursorPos().y - 25})
         imgui.SetNextItemWidth(120)
