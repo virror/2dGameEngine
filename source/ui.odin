@@ -116,6 +116,10 @@ file_watcher: fsw.Watcher
 @(private="file")
 viewport: ^imgui.Viewport
 @(private="file")
+editor_scene_pos: imgui.Vec2
+@(private="file")
+editor_scene_size: imgui.Vec2
+@(private="file")
 window_flags := imgui.WindowFlags{.NoResize, .NoMove, .NoCollapse, .NoTitleBar}
 @(private="file")
 window: ^sdl.Window
@@ -1322,6 +1326,8 @@ ui_show_middle :: proc() {
                 scene_pos := imgui.GetCursorScreenPos()
                 scene_size := size - imgui.Vec2{27, 50}
                 imgui.Image(ref, scene_size)
+                editor_scene_pos = imgui.GetItemRectMin()
+                editor_scene_size = imgui.GetItemRectMax() - editor_scene_pos
                 if imgui.IsItemClicked(.Left) {
                     if selected_asset != nil && selected_asset.type == .Entity {
                         create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()), false, false)
@@ -1346,12 +1352,13 @@ ui_show_middle :: proc() {
                     }
                 }
                 if selected_asset != nil && selected_asset.type == .Placed_entity {
-                    entity_size := imgui.Vec2{selected_entity.size.x, selected_entity.size.y}
+                    entity_size := imgui.Vec2{selected_entity.size.x, selected_entity.size.y} / editor_world_per_pixel()
                     window_pos := position_to_screen(selected_entity.position)
                     window_pos.y -= entity_size.y
                     draw_list := imgui.GetForegroundDrawList()
                     imgui.DrawList_PushClipRect(draw_list, scene_pos, scene_pos + scene_size, true)
                     imgui.DrawList_AddRect(draw_list, window_pos, window_pos + entity_size, 0xFF5555FF, 0, 1)
+                    imgui.DrawList_PopClipRect(draw_list)
                     imgui.SetCursorScreenPos(window_pos)
                     imgui.InvisibleButton("##MoveButton", imgui.Vec2{entity_size.x, entity_size.y})
                     if imgui.IsItemActive() && imgui.IsMouseDragging(imgui.MouseButton.Left, 0.0) {
@@ -1365,7 +1372,7 @@ ui_show_middle :: proc() {
             }
             if imgui.IsMouseDragging(imgui.MouseButton.Middle, 0.0) && imgui.IsWindowHovered() {
                 io := imgui.GetIO()
-                mouse_delta := io.MouseDelta
+                mouse_delta := io.MouseDelta * editor_world_per_pixel()
                 cam_pos := render_get_camera()
                 cam_pos.x -= mouse_delta.x
                 cam_pos.y += mouse_delta.y
@@ -2043,7 +2050,7 @@ build_assets :: proc() {
     os.write_string(fd, "}\n\n")
 
     os.write_string(fd, "entity_create :: proc(type: EntityType, pos: Vector2) -> ^Entity {\n\te: ^Entity\n")
-    os.write_string(fd, "\tif type != .empty {\n\t\t e = entity_spawn()\n\t}\n\tswitch type {\n\tcase .empty:\n\n")
+    os.write_string(fd, "\tif type != .empty {\n\t\te = entity_spawn()\n\t}\n\tswitch type {\n\tcase .empty:\n\n")
     for entity in full_assets_list.entities {
         os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s_init(e, pos)\n", entity.name, entity.name))
     }
@@ -2130,20 +2137,22 @@ remove_asset :: proc(path: string, ext: string) {
     }
 }
 
+@(private="file")
+editor_world_per_pixel :: proc() -> imgui.Vec2 {
+    world_size := imgui.Vec2{zoomed_height * resolution.x / resolution.y, zoomed_height}
+    return world_size / imgui.Vec2{max(editor_scene_size.x, 1), max(editor_scene_size.y, 1)}
+}
+
 screen_to_position :: proc(screen_pos: imgui.Vec2) -> Vector2 {
-    size := viewport.Size - imgui.Vec2{600, 270}
-    pos := viewport.Pos + imgui.Vec2{300, 60}
-    cam := imgui.Vec2{render_get_camera().x * -1, render_get_camera().y}
-    final_pos := ((screen_pos - (pos + (size / 2)) + cam) / QUAD_SIZE)
-    return {final_pos.x, final_pos.y * -1}
+    offset := (screen_pos - (editor_scene_pos + editor_scene_size / 2)) * editor_world_per_pixel()
+    cam := render_get_camera()
+    return {(offset.x + cam.x) / QUAD_SIZE, (cam.y - offset.y) / QUAD_SIZE}
 }
 
 position_to_screen :: proc(pos: Vector2) -> imgui.Vec2 {
-    size := viewport.Size - imgui.Vec2{600, 270}
-    viewport_pos := viewport.Pos + imgui.Vec2{300, 60}
-    cam := imgui.Vec2{render_get_camera().x * -1, render_get_camera().y}
-    screen_pos := (imgui.Vec2{pos.x, pos.y * -1} * QUAD_SIZE) + (viewport_pos + (size / 2) + cam)
-    return screen_pos
+    cam := render_get_camera()
+    offset := imgui.Vec2{pos.x * QUAD_SIZE - cam.x, cam.y - pos.y * QUAD_SIZE}
+    return editor_scene_pos + editor_scene_size / 2 + offset / editor_world_per_pixel()
 }
 
 create_entity :: proc(type: string, pos: Vector2, flipX: bool, flipY: bool) {
