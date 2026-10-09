@@ -151,5 +151,4 @@ tilemap_load_map :: proc(path: string, map_array: ^[TILE_ROWS][TILE_COLS]u16) {
         }
     }
     os.close(file)
-    has_tilemap = true
 }

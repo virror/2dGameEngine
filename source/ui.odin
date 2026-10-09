@@ -25,6 +25,7 @@ Asset_type :: enum {
     Placed_entity,
     Map,
     UI,
+    Tile,
 }
 
 Texture_type :: enum {
@@ -182,11 +183,16 @@ sprite_map: map[string]Sprite
 selected_entity: ^Entity
 dummy_entity_asset: Asset = {"", {0, {0, 0}}, .Placed_entity, ""}
 dummy_ui_asset: Asset = {"", {0, {0, 0}}, .UI, ""}
+dummy_tile_asset: Asset = {"", {0, {0, 0}}, .Tile, ""}
 dummy_no_asset: Asset = {"", {0, {0, 0}}, .Unknown, ""}
 tilemap_sprite: cstring = ""
+tilemap_index: u16
+tilemap_x: int
+tilemap_y: int
 tags: [dynamic][30]u8
 ui_root: UI_node = {"Root", [dynamic]UI_node{}, nil, false, nil}
 selected_ui_node: ^UI_node
+map_array: [TILE_ROWS][TILE_COLS]u16
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -856,6 +862,7 @@ ui_show_right :: proc() {
                             imgui.Checkbox("##FlipY", &selected_entity.flipY)
                         case .Script:
                         case .Map:
+                        case .Tile:
                         case .UI:
                             imgui.Text(selected_ui_node.name)
                             imgui.Spacing()
@@ -940,9 +947,27 @@ ui_show_right :: proc() {
                 if imgui.BeginChild("TilesChild", imgui.Vec2{285, viewport.Size.y - 260}) {
                     if project_loaded {
                         imgui.Text("Tilemap:")
+                        if tilemaps[0].size.x > 0 && tilemaps[0].size.y > 0 {
+                            imgui.SetCursorPos(imgui.Vec2{0, 52})
+                            imgui.Image(texture_to_image(tilemaps[0].texture), imgui.Vec2{256, 256})
+                            if imgui.IsItemHovered() {
+                                mouse_pos := (imgui.GetMousePos() - imgui.GetItemRectMin()) / (QUAD_SIZE * 2)
+                                if imgui.IsMouseClicked(.Left) {
+                                    tilemap_index = u16(mouse_pos.y) * 8 + u16(mouse_pos.x)
+                                    tilemap_x = int(mouse_pos.x)
+                                    tilemap_y = int(mouse_pos.y)
+                                    set_selected_tile_asset()
+                                }
+                            }
+                            draw_list := imgui.GetWindowDrawList()
+                            pos1 := imgui.GetItemRectMin() + imgui.Vec2{f32(tilemap_x * QUAD_SIZE * 2), f32(tilemap_y * QUAD_SIZE * 2)}
+                            pos2 := pos1 + imgui.Vec2{QUAD_SIZE * 2, QUAD_SIZE * 2}
+                            imgui.DrawList_AddRect(draw_list, pos1, pos2, 0xFF5555FF, 0, 1)
+                        }
                         if tilemap_sprite == "" {
                             tilemap_sprite = strings.clone_to_cstring("None")
                         }
+                        imgui.SetCursorPos(imgui.Vec2{0, 20})
                         if imgui.BeginCombo("##Tilemap", tilemap_sprite) {
                             for i := 0; i < len(full_assets_list.textures); i += 1 {
                                 if full_assets_list.textures[i].type != .Tilemap {
@@ -1201,6 +1226,7 @@ clean_project :: proc() {
     project_loaded = false
     project_path = strings.clone("")
     fsw.destroy(file_watcher)
+    //Clean all drawn stuff?
 }
 
 run_project :: proc() {
@@ -1331,6 +1357,9 @@ ui_show_middle :: proc() {
                 if imgui.IsItemClicked(.Left) {
                     if selected_asset != nil && selected_asset.type == .Entity {
                         create_entity(os.short_stem(string(selected_asset.name)), screen_to_position(imgui.GetMousePos()), false, false)
+                    } else if selected_asset != nil && selected_asset.type == .Tile {
+                        pos := screen_to_position(imgui.GetMousePos())
+                        tilemap_set_tile(int(pos.x), int(pos.y), tilemap_index)
                     } else {
                         point := screen_to_position(imgui.GetMousePos())    
                         selected := false
@@ -1525,12 +1554,12 @@ draw_asset_items :: proc() {
             case .Script:
             case .Map:
             case .UI:
+            case .Tile:
             case .Unknown:
                 //Do nothing atm
             }
         }
         if imgui.IsMouseDoubleClicked(imgui.MouseButton.Left) && assets_list[i].type == .Map && selected {
-            map_array: [TILE_ROWS][TILE_COLS]u16
             tilemap_load_map(assets_list[i].path, &map_array)
         }
         ratio := f32(assets_list[i].texture.size.x) / f32(assets_list[i].texture.size.y)
@@ -1723,6 +1752,7 @@ open_project :: proc(path: string) {
     selected_folder = strings.clone(project_path)
     show_working = false
     imgui.ClosePopupToLevel(0, true)
+    tile_array = &map_array
     project_loaded = true
 }
 
@@ -2293,6 +2323,12 @@ set_selected_ui_node :: proc(node: ^UI_node) {
     selected_entity = nil
     selected_ui_node = node
     selected_asset = &dummy_ui_asset
+}
+
+set_selected_tile_asset :: proc() {
+    selected_entity = nil
+    selected_ui_node = nil
+    selected_asset = &dummy_tile_asset
 }
 
 project_write :: proc() {
