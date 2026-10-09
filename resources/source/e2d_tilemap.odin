@@ -44,7 +44,9 @@ tilemap_load_tileset :: proc(data: []u8) -> Tilemap {
 
 tilemap_unload_tilemaps :: proc() {
     for i in 0..<TILEMAP_COUNT {
-        texture_destroy(tilemaps[i].texture)
+        if tilemaps[i].size.x != 0 {
+            texture_destroy(tilemaps[i].texture)
+        }
     }
 }
 

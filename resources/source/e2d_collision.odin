@@ -92,8 +92,8 @@ collide_tiles :: proc(e: ^Entity, time_delta:f32) {
         }
     }
 
-    if e.on_collide_tile != nil && collide_info != {0, 0}{
-        e->on_collide_tile(collide_info)
+    if e.on_collide_tile != .none && collide_info != {0, 0}{
+        on_collide_tile(e, collide_info)
     }
 
     when USE_GRAVITY {
@@ -122,12 +122,8 @@ collide_entities :: proc() {
                         continue
                     }
                     if do_collide_entities(&entities[i], &entities[j]) {
-                        if entities[i].on_collide_entity != nil {
-                            entities[i]->on_collide_entity(&entities[j])
-                        }
-                        if entities[j].on_collide_entity != nil {
-                            entities[j]->on_collide_entity(&entities[i])
-                        }
+                        on_collide_entity(&entities[i], &entities[j])
+                        on_collide_entity(&entities[j], &entities[i])
                     }
                 }
             }

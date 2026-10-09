@@ -43,6 +43,8 @@ Ui_vert_uniform :: struct {
 Light_frag_uniform :: struct {
     diffuse: f32,
     ambient: f32,
+    distance: f32,
+    _padding: f32,
 }
 
 Vertex_Data :: struct {
@@ -204,7 +206,7 @@ render_set_shader :: proc(shader: Shader_type) {
 }
 
 render_set_light :: proc(diffuse: f32, ambient: f32) {
-    light_frag_uniform = {diffuse, ambient}
+    light_frag_uniform = {diffuse, ambient, 300, 0}
 }
 
 render_update_viewport :: proc(width, height: i32) {

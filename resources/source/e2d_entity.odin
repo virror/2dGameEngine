@@ -7,11 +7,6 @@ import "core:math"
 ENTITY_COUNT :: 150
 ANIMATION_FRAME_TIME :: 0.125
 
-EntityTag :: enum {
-    none,
-    player,
-}
-
 Entity :: struct {
     type: EntityType,
     tag: EntityTag,
@@ -24,11 +19,11 @@ Entity :: struct {
     physics: Physics,
     background: bool,
     
-    start: proc(self: ^Entity),
-    update: proc(self: ^Entity, dt: f32),
-    on_collide_entity: proc(self: ^Entity, other: ^Entity),
-    on_collide_tile: proc(self: ^Entity, collide_info: Vector2),
-    destroy: proc(self: ^Entity),
+    start: StartProc,
+    update: UpdateProc,
+    on_collide_entity: CollideEntityProc,
+    on_collide_tile: CollideTileProc,
+    destroy: DestroyProc,
     marked_for_destruction: bool,
 }
 
@@ -238,6 +233,8 @@ sprite_destroy :: proc(sprite: ^Sprite) {
 
 sprite_destroy_all :: proc() {
     for i in 0..<len(sprites) {
-        sprite_destroy(&sprites[i])
+        if sprites[i].size.x != 0 {
+            sprite_destroy(&sprites[i])
+        }
     }
 }

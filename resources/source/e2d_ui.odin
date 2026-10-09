@@ -476,12 +476,14 @@ button_up :: proc(element: ^Ui_element, button: map[Mouse_button]bool) {
 
 font_create :: proc(data: []u8, frames: Vector2) -> UI_Font {
     texture, size := texture_create(data)
-    ratio := (size.y / frames.y) / (size.x / frames.x) 
+    ratio := (size.y / frames.y) / (size.x / frames.x)
     return UI_Font{texture, size, frames, ratio}
 }
 
 font_destroy_all :: proc() {
     for i in 0..<len(fonts) {
-        texture_destroy(fonts[i].texture)
+        if fonts[i].size.x != 0 {
+            texture_destroy(fonts[i].texture)
+        }
     }
 }
