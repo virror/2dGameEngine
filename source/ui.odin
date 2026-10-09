@@ -1981,6 +1981,11 @@ build_assets :: proc() {
     sprite_map: [dynamic]cstring
     tilemap_map: [dynamic]string
     font_map: [dynamic]string
+    start_arr: [dynamic]cstring
+    update_arr: [dynamic]cstring
+    on_collide_entity_arr: [dynamic]cstring
+    on_collide_tile_arr: [dynamic]cstring
+    destroy_arr: [dynamic]cstring
 
     fd, _ := os.open(file_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
     os.write_string(fd, "#+feature dynamic-literals\n")
@@ -2054,26 +2059,26 @@ build_assets :: proc() {
     for entity in full_assets_list.entities {
         os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s_init(e, pos)\n", entity.name, entity.name))
     }
-    os.write_string(fd, "\t}\n\tif e.start != nil {\n\t\te.start(e)\n\t}\n\treturn e\n}\n\n")
+    os.write_string(fd, "\t}\n\tif e.start != .none {\n\t\ton_start(e)\n\t}\n\treturn e\n}\n\n")
 
     for entity in full_assets_list.entities {
         meta := meta_load_entity(entity.path, false)
         os.write_string(fd, fmt.tprintf("%s_init :: proc(self: ^Entity, pos: Vector2) {{\n", entity.name))
         os.write_string(fd, fmt.tprintf("\tentity_init(self, .%s, pos, .%s)\n", entity.name, meta.sprite))
         if meta.update != "" && meta.update != "None" {
-            os.write_string(fd, fmt.tprintf("\tself.update = %s\n", meta.update))
+            os.write_string(fd, fmt.tprintf("\tself.update = .%s\n", meta.update))
         }
         if meta.on_collide_entity != "" && meta.on_collide_entity != "None" {
-            os.write_string(fd, fmt.tprintf("\tself.on_collide_entity = %s\n", meta.on_collide_entity))
+            os.write_string(fd, fmt.tprintf("\tself.on_collide_entity = .%s\n", meta.on_collide_entity))
         }
         if meta.on_collide_tile != "" && meta.on_collide_tile != "None" {
-            os.write_string(fd, fmt.tprintf("\tself.on_collide_tile = %s\n", meta.on_collide_tile))
+            os.write_string(fd, fmt.tprintf("\tself.on_collide_tile = .%s\n", meta.on_collide_tile))
         }
         if meta.start != "" && meta.start != "None" {
-            os.write_string(fd, fmt.tprintf("\tself.start = %s\n", meta.start))
+            os.write_string(fd, fmt.tprintf("\tself.start = .%s\n", meta.start))
         }
         if meta.destroy != "" && meta.destroy != "None" {
-            os.write_string(fd, fmt.tprintf("\tself.destroy = %s\n", meta.destroy))
+            os.write_string(fd, fmt.tprintf("\tself.destroy = .%s\n", meta.destroy))
         }
         os.write_string(fd, "\tself.physics.collider = {\n\t\t")
         os.write_string(fd, fmt.tprintf("bottom = %f,\n\t\ttop = %f,\n\t\tleft = %f,\n\t\tright = %f,\n\t}}\n", f32(meta.collider.x) / QUAD_SIZE, f32(meta.collider.y) / QUAD_SIZE, f32(meta.collider.z) / QUAD_SIZE, f32(meta.collider.w) / QUAD_SIZE))
@@ -2090,6 +2095,87 @@ build_assets :: proc() {
         os.write_string(fd, "}\n\n")
     }
 
+    os.write_string(fd, "on_update :: proc(self: ^Entity, dt: f32) {\n\t#partial switch self.update {\n")
+    for script_idx in 0..<len(full_assets_list.scripts) {
+        for func in full_assets_list.scripts[script_idx].func {
+            if strings.contains(string(func.signature), "(self: ^Entity, delta_time: f32)") {
+                os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s(self, dt)\n", func.name, func.name))
+                append(&update_arr, func.name)
+            }
+        }
+    }
+    os.write_string(fd, "\t}\n}\n\n")
+    os.write_string(fd, "on_start :: proc(self: ^Entity) {\n\t#partial switch self.start {\n")
+    for script_idx in 0..<len(full_assets_list.scripts) {
+        for func in full_assets_list.scripts[script_idx].func {
+            if strings.contains(string(func.signature), "(self: ^Entity)") {
+                os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s(self)\n", func.name, func.name))
+                append(&start_arr, func.name)
+            }
+        }
+    }
+    os.write_string(fd, "\t}\n}\n\n")
+    os.write_string(fd, "on_collide_entity :: proc(self: ^Entity, other: ^Entity) {\n\t#partial switch self.on_collide_entity {\n")
+    for script_idx in 0..<len(full_assets_list.scripts) {
+        for func in full_assets_list.scripts[script_idx].func {
+            if strings.contains(string(func.signature), "(self: ^Entity, other: ^Entity)") {
+                os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s(self, other)\n", func.name, func.name))
+                append(&on_collide_entity_arr, func.name)
+            }
+        }
+    }
+    os.write_string(fd, "\t}\n}\n\n")
+    os.write_string(fd, "on_collide_tile :: proc(self: ^Entity, collide_info: Vector2) {\n\t#partial switch self.on_collide_tile {\n")
+    for script_idx in 0..<len(full_assets_list.scripts) {
+        for func in full_assets_list.scripts[script_idx].func {
+            if strings.contains(string(func.signature), "(self: ^Entity, collide_info: Vector2)") {
+                os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s(self, collide_info)\n", func.name, func.name))
+                append(&on_collide_tile_arr, func.name)
+            }
+        }
+    }
+    os.write_string(fd, "\t}\n}\n\n")
+    os.write_string(fd, "on_destroy :: proc(self: ^Entity) {\n\t#partial switch self.destroy {\n")
+    for script_idx in 0..<len(full_assets_list.scripts) {
+        for func in full_assets_list.scripts[script_idx].func {
+            if strings.contains(string(func.signature), "(self: ^Entity)") {
+                os.write_string(fd, fmt.tprintf("\tcase .%s:\n\t\t%s(self)\n", func.name, func.name))
+                append(&destroy_arr, func.name)
+            }
+        }
+    }
+    os.write_string(fd, "\t}\n}\n\n")
+
+    os.write_string(fd, "UpdateProc :: enum {\n\tnone,\n")
+    for v in update_arr {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", v))
+    }
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "StartProc :: enum {\n\tnone,\n")
+    for v in start_arr {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", v))
+    }
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "DestroyProc :: enum {\n\tnone,\n")
+    for v in destroy_arr {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", v))
+    }
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "CollideTileProc :: enum {\n\tnone,\n")
+    for v in on_collide_tile_arr {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", v))
+    }
+    os.write_string(fd, "}\n\n")
+
+    os.write_string(fd, "CollideEntityProc :: enum {\n\tnone,\n")
+    for v in on_collide_entity_arr {
+        os.write_string(fd, fmt.tprintf("\t%s,\n", v))
+    }
+    os.write_string(fd, "}\n\n")
+
     os.write_string(fd, "EntityTag :: enum {\n")
     for i := 0; i < len(tags); i += 1 {
         os.write_string(fd, fmt.tprintf("\t%s,\n", cstring(&tags[i][0])))
@@ -2104,6 +2190,11 @@ build_assets :: proc() {
     delete(sprite_map)
     delete(tilemap_map)
     delete(font_map)
+    delete(update_arr)
+    delete(start_arr)
+    delete(destroy_arr)
+    delete(on_collide_entity_arr)
+    delete(on_collide_tile_arr)
 }
 
 add_asset :: proc(path: string, ext: string) {
