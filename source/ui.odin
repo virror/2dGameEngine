@@ -7,6 +7,7 @@ import "core:strings"
 import "core:math"
 import "core:time"
 import "core:strconv"
+import "core:slice"
 import "core:mem"
 import sdl "vendor:sdl3"
 import "../../imgui"
@@ -157,6 +158,8 @@ filter_2de: sdl.DialogFileFilter = {name = "2d engine project", pattern = "2de"}
 @(private="file")
 filter_ent: sdl.DialogFileFilter = {name = "Entity file", pattern = "ent"}
 @(private="file")
+filter_map: sdl.DialogFileFilter = {name = "Map file", pattern = "map"}
+@(private="file")
 set_console_focus: bool = false
 @(private="file")
 icon_texture: u32
@@ -193,6 +196,7 @@ tags: [dynamic][30]u8
 ui_root: UI_node = {"Root", [dynamic]UI_node{}, nil, false, nil}
 selected_ui_node: ^UI_node
 map_array: [TILE_ROWS][TILE_COLS]u16
+open_map_path: string
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -205,6 +209,7 @@ ui_init :: proc(window_: ^sdl.Window) {
     sprites[1] = sprite_create(#load("../sprites/Button.png"), {1, 1})
     sprites[1].slice9 = {7, 7, 7, 7}
     fonts[0] = font_create(#load("../sprites/Bitmap_font.png"), {18, 6})
+    open_map_path = fmt.aprint("")
 }
 
 ui_cleanup :: proc() {
@@ -278,6 +283,7 @@ ui_cleanup :: proc() {
     delete(entity_props.on_collide_entity)
     delete(entity_props.on_collide_tile)
     delete(entity_props.destroy)
+    delete(open_map_path)
     delete(tags)
     mix.DestroyAudio(mix.GetTrackAudio(loaded_track))
     mix.DestroyTrack(loaded_track)
@@ -609,13 +615,13 @@ ui_show_right :: proc() {
                             imgui.Text(fmt.ctprintf("Sample Rate: %d", audio_props.sample_rate))
                             imgui.Spacing()
                             if mix.TrackPlaying(loaded_track) {
-                                if imgui.ImageButton("StopTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+                                if imgui.ImageButton("StopTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.25}, imgui.Vec2{0.25, 0.5}) {
                                     if !mix.StopTrack(loaded_track, 0) {
                                         panic("Failed to stop audio.")
                                     }
                                 }
                             } else {
-                                if imgui.ImageButton("PlayTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+                                if imgui.ImageButton("PlayTrack", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.25, 0}, imgui.Vec2{0.50, 0.25}) {
                                     options := sdl.CreateProperties()
                                     if !mix.PlayTrack(loaded_track, options) {
                                         panic("Failed to play audio.")
@@ -1057,14 +1063,14 @@ ui_edit_collider :: proc() {
         draw_list := imgui.GetForegroundDrawList()
         imgui.DrawList_AddRect(draw_list, pos1, pos2, 0xFF5555FF, 0, 1)
         if collider_editor.frames.y > 1 {
-            if imgui.ImageButton("Up", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.333, 0.666}, imgui.Vec2{0.666, 1}) {
+            if imgui.ImageButton("Up", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.25, 0.5}, imgui.Vec2{0.5, 0.75}) {
                 collider_editor.frameY -= 1
                 if collider_editor.frameY < 0 {
                     collider_editor.frameY = i32(collider_editor.frames.y) - 1
                 }
             }
             imgui.SameLine(45, 0)
-            if imgui.ImageButton("Down", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0, 0.666}, imgui.Vec2{0.333, 1}) {
+            if imgui.ImageButton("Down", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0, 0.5}, imgui.Vec2{0.25, 0.75}) {
                 collider_editor.frameY += 1
                 if collider_editor.frameY >= i32(collider_editor.frames.y) {
                     collider_editor.frameY = 0
@@ -1074,14 +1080,14 @@ ui_edit_collider :: proc() {
             imgui.Text(fmt.ctprintf("Clip: %d", collider_editor.frameY))
         }
         if collider_editor.frames.x > 1 {
-            if imgui.ImageButton("Left", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.666, 0.333}, imgui.Vec2{1, 0.666}) {
+            if imgui.ImageButton("Left", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.5, 0.25}, imgui.Vec2{0.75, 0.5}) {
                 collider_editor.frameX -= 1
                 if collider_editor.frameX < 0 {
                     collider_editor.frameX = i32(collider_editor.frames.x) - 1
                 }
             }
             imgui.SameLine(45, 0)
-            if imgui.ImageButton("Right", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.333, 0.333}, imgui.Vec2{0.666, 0.666}) {
+            if imgui.ImageButton("Right", texture_to_image(icon_texture), imgui.Vec2{16, 16}, imgui.Vec2{0.25, 0.25}, imgui.Vec2{0.5, 0.5}) {
                 collider_editor.frameX += 1
                 if collider_editor.frameX >= i32(collider_editor.frames.x) {
                     collider_editor.frameX = 0
@@ -1172,7 +1178,7 @@ ui_show_top :: proc() {
     imgui.SetNextWindowSize(imgui.Vec2{viewport.Size.x - 600, 60})
     if imgui.Begin("TopPanel", nil, window_flags) {
         imgui.SetCursorPosY(10)
-        if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.666, 0}, imgui.Vec2{1, 0.333}) {
+        if imgui.ImageButton("New", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.5, 0}, imgui.Vec2{0.75, 0.25}) {
             if project_loaded {
                 clean_project()
                 show_new_project = true
@@ -1180,7 +1186,7 @@ ui_show_top :: proc() {
         }
         imgui.SetItemTooltip("New project")
         imgui.SameLine(60, 0)
-        if imgui.ImageButton("Open", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0}, imgui.Vec2{0.333, 0.333}) {
+        if imgui.ImageButton("Open", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0}, imgui.Vec2{0.25, 0.25}) {
             if project_loaded {
                 clean_project()
                 recent_read()
@@ -1189,7 +1195,7 @@ ui_show_top :: proc() {
         }
         imgui.SetItemTooltip("Open project")
         imgui.SameLine(120, 0)
-        if imgui.ImageButton("Build", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.666, 0.666}, imgui.Vec2{1, 1}) {
+        if imgui.ImageButton("Build", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.5, 0.5}, imgui.Vec2{0.75, 0.75}) {
             if project_loaded {
                 console_clear()
                 start := sdl.GetPerformanceCounter()
@@ -1202,7 +1208,7 @@ ui_show_top :: proc() {
         imgui.SetItemTooltip("Build project")
         imgui.SameLine(165, 0)
         if stdout_args != nil {
-            if imgui.ImageButton("Stop", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.333}, imgui.Vec2{0.333, 0.666}) {
+            if imgui.ImageButton("Stop", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.25}, imgui.Vec2{0.25, 0.5}) {
                 if project_loaded {
                     if os.process_terminate(process) != nil {
                         panic("Failed to kill process.")
@@ -1210,7 +1216,7 @@ ui_show_top :: proc() {
                 }
             }
         } else {
-            if imgui.ImageButton("Run", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.333, 0}, imgui.Vec2{0.666, 0.333}) {
+            if imgui.ImageButton("Run", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.25, 0}, imgui.Vec2{0.5, 0.25}) {
                 if project_loaded {
                     console_clear()
                     run_project()
@@ -1396,6 +1402,18 @@ ui_show_middle :: proc() {
                             selected_entity.position = screen_to_position(imgui.GetMousePos())
                         }
                     }
+                }
+                imgui.SetCursorPos({size.x - 100, 40})
+                if imgui.ImageButton("Save", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.75}, imgui.Vec2{0.25, 1}) {
+                    if open_map_path == "" {
+                        editor_map_save_as()
+                    } else {
+                        map_save(open_map_path)
+                    }
+                }
+                imgui.SetCursorPos({size.x - 56, 40})
+                if imgui.ImageButton("SaveAs", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.25, 0.75}, imgui.Vec2{0.5, 1}) {
+                    editor_map_save_as()
                 }
                 imgui.EndTabItem()
             }
@@ -2375,4 +2393,34 @@ project_load :: proc() {
         append(&tags, transmute([30]u8)dst)
     }
     os.close(fp)
+}
+
+editor_map_save_as :: proc() {
+    sdl.ShowSaveFileDialog(map_save_callback, nil, nil, &filter_map, 1, nil)
+}
+
+map_save_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) {
+    context = runtime.default_context()
+    if filelist[0] == "" {
+        return
+    }
+    map_save(string(filelist[0]))
+}
+
+map_save :: proc(path: string) {
+    fmt.println("Saving map to: ", path)
+    file, err := os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+    assert(err == nil, "Failed to save map")
+
+    os.write(file, slice.to_bytes(tile_array[:][:]))
+    os.write_string(file, "\n")
+    for &e, _ in entities {
+        if e.type != "" {
+            str := fmt.tprintf("%v:%f:%f:%d:%d\n", e.type, e.position.x, e.position.y, int(e.flipX), int(e.flipY))
+            os.write_string(file, str)
+        }
+    }
+    os.close(file)
+    delete(open_map_path)
+    open_map_path = fmt.aprint(path)
 }
