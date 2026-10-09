@@ -130,8 +130,6 @@ show_welcome: bool = true
 @(private="file")
 show_new_project: bool = false
 @(private="file")
-show_open_project: bool = false
-@(private="file")
 show_colorpicker: bool = false
 @(private="file")
 show_working: bool = false
@@ -363,11 +361,6 @@ ui_update :: proc() {
         show_new_project = false
     }
     ui_show_new_project()
-    if show_open_project {
-        imgui.OpenPopup("Open Project")
-        show_open_project = false
-    }
-    ui_show_open_project()
     if show_edit_collider {
         imgui.OpenPopup("Edit Collider")
         show_edit_collider = false
@@ -1188,9 +1181,7 @@ ui_show_top :: proc() {
         imgui.SameLine(60, 0)
         if imgui.ImageButton("Open", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0}, imgui.Vec2{0.25, 0.25}) {
             if project_loaded {
-                clean_project()
-                recent_read()
-                show_open_project = true
+                sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter_2de, 1, nil, false)
             }
         }
         imgui.SetItemTooltip("Open project")
@@ -1608,8 +1599,9 @@ texture_to_image :: proc(tex: u32) -> imgui.TextureRef {
 }
 
 ui_show_welcome :: proc() {
+    recent_read()
     imgui.SetNextWindowPos(viewport.Pos + viewport.Size / 2, .Always, imgui.Vec2{0.5, 0.5})
-    imgui.SetNextWindowSize(imgui.Vec2{253, 75})
+    imgui.SetNextWindowSize(imgui.Vec2{253, 275})
     if imgui.BeginPopupModal("Welcome", nil, window_flags) {
         if imgui.Button("New Project") {
             show_new_project = true
@@ -1617,9 +1609,17 @@ ui_show_welcome :: proc() {
         }
         imgui.SameLine(140, 0)
         if imgui.Button("Open Project") {
-            recent_read()
-            show_open_project = true
-            imgui.CloseCurrentPopup()
+            sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter_2de, 1, nil, false)
+        }
+        imgui.Spacing()
+        imgui.Text("Recent:")
+        for item in recent_list {
+            if item.path != "" {
+                if imgui.TextLink(strings.clone_to_cstring(os.base(item.path), context.temp_allocator)) {
+                    open_project(item.path)
+                }
+                imgui.SetItemTooltip(fmt.ctprintf("%s\n%s", item.path, item.date))
+            }
         }
         imgui.EndPopup()
     }
@@ -1711,37 +1711,12 @@ load_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) 
     project_path = fmt.aprintf("%s\\%s", filelist[0], cstring(&new_project_name[0]))
 }
 
-ui_show_open_project :: proc() {
-    imgui.SetNextWindowPos(viewport.Pos + viewport.Size / 2, .Always, imgui.Vec2{0.5, 0.5})
-    imgui.SetNextWindowSize(imgui.Vec2{300, 300})
-    if imgui.BeginPopupModal("Open Project", nil, window_flags) {
-        if imgui.Button("Select project") {
-            sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter_2de, 1, nil, false)
-        }
-        imgui.SameLine(140, 0)
-        if imgui.Button("Back") {
-            imgui.CloseCurrentPopup()
-            show_welcome = true
-        }
-        imgui.Spacing()
-        imgui.Text("Recent:")
-        for item in recent_list {
-            if item.path != "" {
-                if imgui.TextLink(strings.clone_to_cstring(os.base(item.path), context.temp_allocator)) {
-                    open_project(item.path)
-                }
-                imgui.SetItemTooltip(fmt.ctprintf("%s\n%s", item.path, item.date))
-            }
-        }
-        imgui.EndPopup()
-    }
-}
-
 open_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) {
     context = runtime.default_context()
     if filelist[0] == "" {
         return
     }
+    clean_project()
     open_project(string(filelist[0]))
 }
 
@@ -1798,7 +1773,6 @@ ui_show_file_not_found :: proc() {
             }
             file_not_found = ""
             imgui.CloseCurrentPopup()
-            show_open_project = true
         }
         imgui.EndPopup()
     }
