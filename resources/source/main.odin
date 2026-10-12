@@ -18,13 +18,15 @@ exit := false
 pause: bool
 scene_state: Game_scene
 player: ^Entity
+debug_allocator: mem.Tracking_Allocator
 
 main :: proc() {
     when ODIN_DEBUG {
-        debug_allocator: mem.Tracking_Allocator
         mem.tracking_allocator_init(&debug_allocator, context.allocator)
         context.allocator = mem.tracking_allocator(&debug_allocator)
     }
+
+    defer print_memory(debug_allocator)
 
     if !sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO) {
         panic("SDL3 init failed")
@@ -153,4 +155,11 @@ load_keys :: proc() {
     input_add("up", sdl.K_W, sdl.GamepadButton.DPAD_UP)
     input_add("quit", sdl.K_ESCAPE, sdl.GamepadButton.BACK)
     input_add("action", sdl.K_E, sdl.GamepadButton.NORTH)
+}
+
+print_memory :: proc(debug_allocator: mem.Tracking_Allocator) {
+    when ODIN_DEBUG {
+        fmt.println(debug_allocator.allocation_map)
+        fmt.println(debug_allocator.current_memory_allocated)
+    }
 }

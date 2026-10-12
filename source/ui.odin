@@ -195,6 +195,8 @@ ui_root: UI_node = {"Root", [dynamic]UI_node{}, nil, false, nil}
 selected_ui_node: ^UI_node
 map_array: [TILE_ROWS][TILE_COLS]u16
 open_map_path: string
+build_mode: []cstring = {"Debug", "Release"}
+selected_build_mode: int
 
 ui_init :: proc(window_: ^sdl.Window) {
     window = window_
@@ -1184,8 +1186,19 @@ ui_show_top :: proc() {
                 sdl.ShowOpenFileDialog(open_callback, nil, nil, &filter_2de, 1, nil, false)
             }
         }
+        imgui.SetCursorPos(imgui.Vec2{120, 15})
+        imgui.SetNextItemWidth(90)
+        if imgui.BeginCombo("##BuildMode", build_mode[selected_build_mode]) {
+            for i := 0; i < len(build_mode); i += 1 {
+                is_selected := int(selected_build_mode) == i
+                if imgui.Selectable(build_mode[i], is_selected) {
+                    selected_build_mode = i
+                }
+            }
+            imgui.EndCombo()
+        }
         imgui.SetItemTooltip("Open project")
-        imgui.SameLine(120, 0)
+        imgui.SetCursorPos(imgui.Vec2{220, 10})
         if imgui.ImageButton("Build", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0.5, 0.5}, imgui.Vec2{0.75, 0.75}) {
             if project_loaded {
                 console_clear()
@@ -1197,7 +1210,7 @@ ui_show_top :: proc() {
             }
         }
         imgui.SetItemTooltip("Build project")
-        imgui.SameLine(165, 0)
+        imgui.SameLine(265, 0)
         if stdout_args != nil {
             if imgui.ImageButton("Stop", texture_to_image(icon_texture), imgui.Vec2{24, 24}, imgui.Vec2{0, 0.25}, imgui.Vec2{0.25, 0.5}) {
                 if project_loaded {
@@ -1232,16 +1245,31 @@ run_project :: proc() {
     path := fmt.tprintf("%s\\source", project_path)
     stdout_read, stdout_write, _ := os.pipe()
 	stderr_read, stderr_write, _ := os.pipe()
-    command := []string {
-        "../Odin/odin.exe",
-        "run",
-        path,
-        "-o:speed",
-        "-vet-unused-variables",
-        "-vet-shadowing",
-        "-vet-using-stmt",
-        "-strict-style",
+    command: []string
+
+    if selected_build_mode == 0 {
+        command = {
+            "../Odin/odin.exe",
+            "run",
+            path,
+            "-vet-unused-variables",
+            "-vet-shadowing",
+            "-vet-using-stmt",
+            "-strict-style",
+        }
+    } else {
+        command = {
+            "../Odin/odin.exe",
+            "run",
+            path,
+            "-o:speed",
+            "-vet-unused-variables",
+            "-vet-shadowing",
+            "-vet-using-stmt",
+            "-strict-style",
+        }
     }
+    
     desc.command = command
     desc.working_dir = project_path
     desc.stdout = stdout_write
@@ -2200,6 +2228,7 @@ build_assets :: proc() {
 
     os.write_string(fd, "EntityTag :: enum {\n")
     for i := 0; i < len(tags); i += 1 {
+        fmt.print(cstring(&tags[i][0]))
         os.write_string(fd, fmt.tprintf("\t%s,\n", cstring(&tags[i][0])))
     }
     os.write_string(fd, "}\n\n")
@@ -2208,6 +2237,9 @@ build_assets :: proc() {
     os.write_string(fd, fmt.tprintf("SPRITE_COUNT :: %d\n", sprites_count))
     os.write_string(fd, fmt.tprintf("FONT_COUNT :: %d\n", fonts_count))
     os.write_string(fd, fmt.tprintf("SOUND_COUNT :: %d\n", sounds_count))
+    if selected_build_mode == 0 {
+        os.write_string(fd, fmt.tprint("ODIN_DEBUG :: true"))
+    }
     os.close(fd)
     delete(sprite_map)
     delete(tilemap_map)
